@@ -24,6 +24,9 @@
       "@sho/signal-layer": ["packages/signal-layer/src/index.ts"],
       "@sho/pipeline": ["packages/pipeline/src/index.ts"],
       "@sho/adapters": ["packages/adapters/src/index.ts"],
+      "@sho/adapter-agenticops": ["packages/adapter-agenticops/src/index.ts"],
+      "@sho/adapter-agenticmind": ["packages/adapter-agenticmind/src/index.ts"],
+      "@sho/adapter-apl": ["packages/adapter-apl/src/index.ts"],
       "@sho/app": ["packages/app/src/index.ts"]
     }
   }

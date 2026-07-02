@@ -2,8 +2,23 @@ import { test, expect } from 'bun:test'
 import {
   levelToTier, isAutoApply, toTrustLoop, autoActionLoop,
   normalizeIncidentCandidate, looksLikeInjection, isOutcomeEvent,
-  MIGRATIONS, WINDOWS_DAYS,
+  MIGRATIONS, WINDOWS_DAYS, InMemoryTelemetry, InMemoryBacklog,
 } from './src/index'
+
+test('ports: telemetry records; backlog enqueue is idempotent on id', () => {
+  const t = new InMemoryTelemetry()
+  t.emit({ kind: 'harm', at: '2026-07-01T00:00:00Z', classKey: 'c', data: { caused: 1 } })
+  expect(t.events).toHaveLength(1)
+
+  const b = new InMemoryBacklog()
+  const item = { id: 'apr-1', kind: 'approval' as const, title: 'Tier 3 fix', payload: {} }
+  b.enqueue(item)
+  b.enqueue({ ...item, title: 'dup attempt' })
+  expect(b.items.size).toBe(1)
+  expect(b.items.get('apr-1')!.item.title).toBe('Tier 3 fix') // first write wins
+  b.complete('apr-1', 'approved')
+  expect(b.items.get('apr-1')!.outcome).toBe('approved')
+})
 
 test('crosswalk: level → tier, Tier 4 never autonomous', () => {
   expect(levelToTier('L0')).toBe(1)

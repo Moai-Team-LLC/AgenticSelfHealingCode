@@ -4,7 +4,7 @@ Self-Healing Ops (SHO) is a **standalone** open-source product: it runs end-to-e
 pgvector with nothing else (see the top-level README). But it shares DNA with two sibling OSS
 projects, and when they're present SHO plugs into them as a first-class app on the platform:
 
-- **[AgenticMind](https://github.com/AlexDuchDev/agenticmind)** — the pgvector why-trace memory engine
+- **[AgenticMind](https://github.com/Moai-Team-LLC/AgenticMind)** — the pgvector why-trace memory engine
   (retrieval, judge-gated, anti-hallucination). SHO's Incident Memory *is* this pattern.
 - **AgenticOps** — the operational substrate (Backlog + Telemetry + durable execution). SHO's
   orchestration, approvals, and metrics map onto it.
@@ -33,22 +33,20 @@ dependency; SHO never *requires* AgenticOps or AgenticMind.
 - **No rework.** The interfaces already exist (`IncidentMemory` is a port today; `Telemetry`/`Backlog`
   are small additions). Adapters slot in exactly like the Postgres/Claude/Telegram ones.
 
-## To wire the real adapters (next, concrete)
+## Implemented adapters
 
-Both platforms are OSS and cloned in the workspace, so these are buildable, not hypothetical. Each
-needs the counterpart's client surface:
+All three are built and verified — offline tests with fakes shaped from the **real** target sources,
+plus live-verify scripts that exercise the real code where a server isn't required:
 
-1. **`AgenticMindIncidentMemory`** — needs AgenticMind's store client (write why-trace + embedding,
-   vector search with outcome labels, label lifecycle). Implement SHO's `IncidentMemory` port over it;
-   verify with the same `verify-pg.ts`-style live checks.
-2. **`Telemetry` port + `AgenticOpsTelemetry`** — add a tiny `Telemetry` interface to `@sho/contracts`
-   (or a new `@sho/observability`), emit from the Trust Controller (harm/transition) and the D10
-   instrument (MTTR), with a no-op default; adapter forwards to AgenticOps Telemetry.
-3. **`Backlog` port + `AgenticOpsBacklog`** — map `@sho/hitl` `ApprovalQueue` + incident lifecycle onto
-   AgenticOps Backlog work items.
+| Package | Maps | Verified against the real target |
+|---|---|---|
+| [`@sho/adapter-agenticops`](packages/adapter-agenticops/) | `TelemetrySink` → `Telemetry.audit(AuditInput)` with honest `AuditKind` mapping per event kind; `BacklogPort` → `Backlog.enqueue/complete` with adapter-side idempotency on `WorkItem.id` (the real `EnqueueOptions` has no dedupe key) | ✅ `verify-live.ts` imports the **real** AgenticOps classes and drives them on `:memory:` SQLite — 17 checks |
+| [`@sho/adapter-agenticmind`](packages/adapter-agenticmind/) | Incident memory over MCP contract **v1.2.0**: `recordIncident`+why-trace → `kl_ingest`; outcome labels → `mem_write` (`sho:outcome` beliefs) + `kl_signal` (±1 on terminal polarities); `retrieveSimilar` → `kl_search` + per-hit `mem_recall` polarity join → the same exemplar/anti-pattern ranking as the in-repo store | ✅ all emitted payloads validated against the **real** zod input schemas from the clone; live-server rung gated on `AGENTICMIND_MCP_URL` |
+| [`@sho/adapter-apl`](packages/adapter-apl/) | `TelemetrySink` → APL's OTel contract: `rca_outcome`→`apl.outcome`, gate results as `execute_tool` child spans, `llm_cost`→`gen_ai.usage.*`, mandatory `apl.tenant_id`/`apl.agent_id` resource/span attrs — names copied verbatim from `contract.ts` | ✅ round-trip through APL's **real** `normalizeGenAI`/`validateTrace` — zero contract violations |
 
-Point me at the AgenticMind / AgenticOps repos (or confirm the clone paths) and I'll build these
-against their real APIs and live-verify them, same as the Postgres path.
+The ports (`TelemetrySink`, `BacklogPort`, `WorkItem`) live in `@sho/contracts` with in-memory
+standalone defaults. Conformance to the Agentic Product Standard is mapped in
+[`CONFORMANCE.md`](CONFORMANCE.md) (including an honest gaps table).
 
 ## Licensing note
 
