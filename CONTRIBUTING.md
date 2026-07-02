@@ -1,7 +1,9 @@
 # Contributing to Self-Healing Ops
 
-Thanks for your interest. SHO is an Apache-2.0 open-source product — a standalone system that also
-plugs into [AgenticMind](https://github.com/AlexDuchDev/agenticmind) and AgenticOps (see
+Thanks for your interest. AgenticSelfHealingCode (internally `@sho/*` — "self-healing ops") is an
+Apache-2.0 open-source product — a standalone system that also plugs into
+[AgenticMind](https://github.com/Moai-Team-LLC/AgenticMind),
+[AgenticOps](https://github.com/Moai-Team-LLC/AgenticOps), and APL (see
 [`INTEGRATIONS.md`](INTEGRATIONS.md)).
 
 ## Setup

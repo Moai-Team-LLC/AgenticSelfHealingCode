@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/Moai-Team-LLC/AgenticSelfHealingCode/security/advisories/new
+    about: Report privately via GitHub security advisories — never in a public issue.
+  - name: Agentic Product Standard
+    url: https://github.com/Moai-Team-LLC/agentic-product-standard
+    about: Questions about the standard this project conforms to.

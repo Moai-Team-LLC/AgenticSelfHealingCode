@@ -1,19 +1,43 @@
-# Self-Healing Ops
+# AgenticSelfHealingCode
 
-A network of agents for production monitoring, auto-repair, and test-coverage — **designed
-adversarially, then reduced to the parts that are actually safe to build first.**
+**Self-healing ops for agentic products** — a network of agents for production monitoring,
+incident diagnosis, auto-repair, and test-suite healing, **designed adversarially, then reduced
+to the parts that are actually safe to build first.**
 
-Apache-2.0 · TypeScript · [Bun](https://bun.sh). Runs **standalone** on Postgres + pgvector, and plugs
-into [AgenticMind](https://github.com/AlexDuchDev/agenticmind) and AgenticOps when present (optional
-adapters — see [`INTEGRATIONS.md`](INTEGRATIONS.md)). Contributing: [`CONTRIBUTING.md`](CONTRIBUTING.md).
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![CI](https://github.com/Moai-Team-LLC/AgenticSelfHealingCode/actions/workflows/ci.yml/badge.svg)](https://github.com/Moai-Team-LLC/AgenticSelfHealingCode/actions/workflows/ci.yml)
+[![Implements: Agentic Product Standard](https://img.shields.io/badge/implements-Agentic%20Product%20Standard-CD7722.svg)](https://github.com/Moai-Team-LLC/agentic-product-standard)
+[![Runtime: Bun](https://img.shields.io/badge/runtime-Bun-black.svg)](https://bun.sh)
+[![DB: Postgres + pgvector](https://img.shields.io/badge/db-Postgres%20%2B%20pgvector-336791.svg)](https://github.com/pgvector/pgvector)
+
+Runs **standalone** on Postgres + pgvector — and plugs into the AgenticProduct ecosystem when its
+siblings are present (optional adapters, never hard dependencies — see
+[`INTEGRATIONS.md`](INTEGRATIONS.md) and [`CONFORMANCE.md`](CONFORMANCE.md)).
 
 ```bash
-bun test packages    # the whole product — 152 tests
+bun test packages    # the whole product
 ```
 
 It is two things: a **reconciled design** (the root markdown docs, adversarially reviewed — start with
-`ARCHITECTURE-REFRAMED.md`) and a **working product** — 12 packages that compose into a runnable
-service, verified against real Postgres + pgvector.
+`ARCHITECTURE-REFRAMED.md`) and a **working product** — the `@sho/*` packages that compose into a
+runnable service, verified against real Postgres + pgvector.
+
+## 🌐 Ecosystem
+
+AgenticSelfHealingCode is the **operations-recovery member** of the AgenticProduct family — the
+open standard plus its reference implementations:
+
+|     | Repo                                                                                              | Role — use it when                                                                                     |
+| --- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| 📐  | [agentic-product-standard](https://github.com/Moai-Team-LLC/agentic-product-standard)              | **The standard** — autonomy ladder, composition patterns, the harness layers, eval discipline. Start here. |
+| 🧠  | [AgenticMind](https://github.com/Moai-Team-LLC/AgenticMind)                                         | **Knowledge & memory** — citation-enforced answers, replayable why-trace, judge-gated learning over MCP. |
+| 🚦  | [AgenticOps](https://github.com/Moai-Team-LLC/AgenticOps)                                           | **Fleet operations** — manifests, backlog, scheduler, telemetry, policy for running agent fleets.        |
+| 📊  | Agent Performance Layer (APL)                                                                       | **Observability & evals** — OTel-based traces, golden-set evals, failure clusters. Public release in progress. |
+| 🩺  | **AgenticSelfHealingCode** (this repo)                                                              | **Self-healing ops** — incident diagnosis (RCA copilot), test-suite healing, outcome-earned autonomy, verification gates. |
+
+How this repo composes with each sibling — including the ports/adapters already built — is specified
+in [`INTEGRATIONS.md`](INTEGRATIONS.md); conformance to the standard is mapped in
+[`CONFORMANCE.md`](CONFORMANCE.md).
 
 ## The one-line reframe
 

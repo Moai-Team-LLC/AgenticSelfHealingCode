@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Product packages
+        run: bun test packages
+      - name: Reference kernels
+        run: |
+          for d in d10-instrument verification-gate mutation-gate gate loop-b; do
+            (cd "$d" && bun test)
+          done
+
+  # Live checks against a real Postgres + pgvector (the DB-backed paths).
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      pg:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: sho
+          POSTGRES_DB: sho
+        ports: ["54329:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgres://postgres:sho@localhost:54329/sho
+      SIGNAL_SECRET: ci-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Apply contract migrations
+        run: |
+          bun -e 'import {MIGRATIONS} from "./packages/contracts/src/index.ts"; process.stdout.write(MIGRATIONS.map(m=>m.sql).join("\n\n"))' > /tmp/migrations.sql
+          PGPASSWORD=sho psql -h localhost -p 54329 -U postgres -d sho -v ON_ERROR_STOP=1 -f /tmp/migrations.sql
+      - name: Incident-memory live checks
+        run: bun run packages/incident-memory/verify-pg.ts
+      - name: Durable orchestrator live checks
+        run: bun run packages/orchestrator/verify-orch-pg.ts
+      - name: App end-to-end (durable notify)
+        run: bun run packages/app/verify-app-pg.ts
