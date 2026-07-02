@@ -1,0 +1,18 @@
+# --- Secrets & connectors: NEVER commit (open-source boundary) ---
+.env
+.env.*
+!.env.example
+connectors/.env
+connectors/.env.*
+!connectors/.env.example
+*.local
+
+# Pulled incident data may contain company-identifying content — keep it local.
+incidents.json
+connectors/incidents.json
+connectors/*.pulled.json
+
+# --- Runtime ---
+node_modules/
+bun.lockb
+.DS_Store

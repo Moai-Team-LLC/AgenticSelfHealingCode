@@ -1,0 +1,9 @@
+{
+  "name": "self-healing-ops",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "test": "bun test packages"
+  }
+}

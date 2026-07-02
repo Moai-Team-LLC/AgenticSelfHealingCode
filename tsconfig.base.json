@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ESNext"],
+    "types": ["bun-types"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "baseUrl": ".",
+    "paths": {
+      "@sho/contracts": ["packages/contracts/src/index.ts"],
+      "@sho/contracts/*": ["packages/contracts/src/*"],
+      "@sho/trust-controller": ["packages/trust-controller/src/index.ts"],
+      "@sho/aggregation": ["packages/aggregation/src/index.ts"],
+      "@sho/incident-memory": ["packages/incident-memory/src/index.ts"],
+      "@sho/orchestrator": ["packages/orchestrator/src/index.ts"],
+      "@sho/hitl": ["packages/hitl/src/index.ts"],
+      "@sho/loop-a": ["packages/loop-a/src/index.ts"],
+      "@sho/loop-b": ["packages/loop-b/src/index.ts"],
+      "@sho/signal-layer": ["packages/signal-layer/src/index.ts"],
+      "@sho/pipeline": ["packages/pipeline/src/index.ts"],
+      "@sho/adapters": ["packages/adapters/src/index.ts"],
+      "@sho/app": ["packages/app/src/index.ts"]
+    }
+  }
+}

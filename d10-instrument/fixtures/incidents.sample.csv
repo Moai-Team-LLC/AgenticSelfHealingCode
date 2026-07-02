@@ -1,0 +1,4 @@
+incident_id,component,created_at,ack_at,diagnosed_at,deployed_at,resolved,resolution
+INC-1,checkout,2026-06-01T09:00:00Z,2026-06-01T09:02:00Z,2026-06-01T09:50:00Z,2026-06-01T10:00:00Z,2026-06-01T10:05:00Z,code_fix
+INC-2,"payments, billing",2026-06-01T12:00:00Z,2026-06-01T12:01:00Z,,2026-06-01T13:00:00Z,2026-06-01T13:05:00Z,rollback
+INC-3,search,2026-06-01T14:00:00Z,2026-06-01T14:03:00Z,2026-06-01T14:20:00Z,2026-06-01T14:40:00Z,2026-06-01T14:45:00Z,code_fix

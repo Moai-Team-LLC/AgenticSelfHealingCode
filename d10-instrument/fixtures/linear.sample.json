@@ -1,0 +1,51 @@
+[
+  {
+    "identifier": "ENG-1",
+    "title": "Checkout total off by tax",
+    "createdAt": "2026-06-01T09:00:00.000Z",
+    "startedAt": "2026-06-01T09:02:00.000Z",
+    "completedAt": "2026-06-01T10:05:00.000Z",
+    "team": { "key": "ENG" },
+    "labels": { "nodes": [{ "name": "bug" }, { "name": "code_fix" }] },
+    "history": {
+      "nodes": [
+        { "createdAt": "2026-06-01T09:02:00.000Z", "toState": { "name": "In Progress" } },
+        { "createdAt": "2026-06-01T09:50:00.000Z", "toState": { "name": "Root Cause Found" } },
+        { "createdAt": "2026-06-01T10:00:00.000Z", "toState": { "name": "Deployed" } },
+        { "createdAt": "2026-06-01T10:05:00.000Z", "toState": { "name": "Done" } }
+      ]
+    }
+  },
+  {
+    "identifier": "ENG-2",
+    "title": "Intermittent 500 on login",
+    "createdAt": "2026-06-01T12:00:00.000Z",
+    "startedAt": "2026-06-01T12:01:00.000Z",
+    "completedAt": "2026-06-01T13:05:00.000Z",
+    "team": { "key": "ENG" },
+    "labels": { "nodes": [] },
+    "history": {
+      "nodes": [
+        { "createdAt": "2026-06-01T12:01:00.000Z", "toState": { "name": "In Progress" } },
+        { "createdAt": "2026-06-01T13:05:00.000Z", "toState": { "name": "Done" } }
+      ]
+    }
+  },
+  {
+    "identifier": "OPS-3",
+    "title": "Cache stampede after deploy",
+    "createdAt": "2026-06-01T14:00:00.000Z",
+    "startedAt": "2026-06-01T14:03:00.000Z",
+    "completedAt": "2026-06-01T14:45:00.000Z",
+    "team": { "key": "OPS" },
+    "labels": { "nodes": [{ "name": "rollback" }] },
+    "history": {
+      "nodes": [
+        { "createdAt": "2026-06-01T14:03:00.000Z", "toState": { "name": "In Progress" } },
+        { "createdAt": "2026-06-01T14:20:00.000Z", "toState": { "name": "Root Cause Found" } },
+        { "createdAt": "2026-06-01T14:40:00.000Z", "toState": { "name": "Deployed" } },
+        { "createdAt": "2026-06-01T14:45:00.000Z", "toState": { "name": "Done" } }
+      ]
+    }
+  }
+]

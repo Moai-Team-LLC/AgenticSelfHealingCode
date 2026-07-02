@@ -1,0 +1,5 @@
+[
+  { "deployed_at": "2026-06-01T09:10:00Z", "incident_ids": ["PABC1"] },
+  { "deployed_at": "2026-06-01T09:05:00Z", "incident_ids": ["PABC1"] },
+  { "deployed_at": "2026-06-01T16:30:00Z", "incident_ids": ["PABC2"] }
+]

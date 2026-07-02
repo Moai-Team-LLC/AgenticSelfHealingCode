@@ -1,0 +1,22 @@
+[
+  {
+    "id": "PABC1",
+    "incident_number": 101,
+    "created_at": "2026-06-01T08:00:00Z",
+    "urgency": "high",
+    "service": { "summary": "api" },
+    "log_entries": [
+      { "type": "trigger_log_entry", "created_at": "2026-06-01T08:00:00Z" },
+      { "type": "acknowledge_log_entry", "created_at": "2026-06-01T08:03:00Z" },
+      { "type": "resolve_log_entry", "created_at": "2026-06-01T09:15:00Z" }
+    ]
+  },
+  {
+    "id": "PABC2",
+    "incident_number": 102,
+    "created_at": "2026-06-01T15:00:00Z",
+    "resolved_at": "2026-06-01T16:00:00Z",
+    "service": { "summary": "search" },
+    "log_entries": []
+  }
+]
