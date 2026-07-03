@@ -1,0 +1,40 @@
+# Run AgenticSelfHealingCode for real: Postgres + pgvector (durable state) + the signal-intake service.
+#
+#   SIGNAL_SECRET=$(openssl rand -hex 16) docker compose up
+#
+# Then from another shell:  SIGNAL_SECRET=<same> bun run send-signal
+# Optional keys (Claude RCA hypotheses, Telegram delivery) go in connectors/.env — see README.
+services:
+  pg:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_PASSWORD: sho
+      POSTGRES_DB: sho
+    ports:
+      - "54329:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sho"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    image: oven/bun:1
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      DATABASE_URL: postgres://postgres:sho@pg:5432/sho
+      SIGNAL_SECRET: ${SIGNAL_SECRET:-dev-secret}
+      PORT: "3000"
+    ports:
+      - "3000:3000"
+    depends_on:
+      pg:
+        condition: service_healthy
+    command: sh -c "bun run migrate && bun run start"
+
+volumes:
+  pgdata:

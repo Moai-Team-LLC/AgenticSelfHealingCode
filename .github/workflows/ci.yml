@@ -23,6 +23,9 @@ jobs:
           for d in d10-instrument verification-gate mutation-gate gate loop-b; do
             (cd "$d" && bun test)
           done
+      # The fresh-clone smoke: the very first command a new user runs must work from a clean checkout.
+      - name: Onboarding demo (fresh-clone smoke)
+        run: bun run demo
 
   # Live checks against a real Postgres + pgvector (the DB-backed paths).
   postgres:
@@ -45,10 +48,8 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - name: Apply contract migrations
-        run: |
-          bun -e 'import {MIGRATIONS} from "./packages/contracts/src/index.ts"; process.stdout.write(MIGRATIONS.map(m=>m.sql).join("\n\n"))' > /tmp/migrations.sql
-          PGPASSWORD=sho psql -h localhost -p 54329 -U postgres -d sho -v ON_ERROR_STOP=1 -f /tmp/migrations.sql
+      - name: Apply contract migrations (the onboarding CLI, dogfooded)
+        run: bun run migrate
       - name: Incident-memory live checks
         run: bun run packages/incident-memory/verify-pg.ts
       - name: Durable orchestrator live checks

@@ -1,9 +1,13 @@
 {
-  "name": "self-healing-ops",
+  "name": "agentic-self-healing-code",
   "private": true,
   "type": "module",
   "workspaces": ["packages/*"],
   "scripts": {
-    "test": "bun test packages"
+    "demo": "bun run scripts/demo.ts",
+    "test": "bun test packages",
+    "migrate": "bun run scripts/migrate.ts",
+    "start": "bun run packages/app/src/server.ts",
+    "send-signal": "bun run scripts/send-signal.ts"
   }
 }

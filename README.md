@@ -14,13 +14,47 @@ Runs **standalone** on Postgres + pgvector — and plugs into the AgenticProduct
 siblings are present (optional adapters, never hard dependencies — see
 [`INTEGRATIONS.md`](INTEGRATIONS.md) and [`CONFORMANCE.md`](CONFORMANCE.md)).
 
+## 🚀 Quick start (60 seconds)
+
+Requires only [Bun](https://bun.sh). No keys, no database, no config:
+
 ```bash
-bun test packages    # the whole product
+git clone https://github.com/Moai-Team-LLC/AgenticSelfHealingCode.git
+cd AgenticSelfHealingCode
+bun run demo
 ```
 
-It is two things: a **reconciled design** (the root markdown docs, adversarially reviewed — start with
-`ARCHITECTURE-REFRAMED.md`) and a **working product** — the `@sho/*` packages that compose into a
-runnable service, verified against real Postgres + pgvector.
+The demo starts the real signal-intake service and plays five scenarios at it over real HTTP with
+real HMAC signatures. You'll watch it: ground a deploy-linked exception and recommend the rollback
+(**CONFIRMED**); refuse to blame a deploy that isn't there and escalate with the **named missing
+evidence** (it never guesses); reject a spoofed webhook at the signed-ingestion boundary; flag a
+prompt-injection attempt inside telemetry as *data, never instructions*; and decline to double-page
+the on-call for a duplicate incident.
+
+### Run it for real
+
+```bash
+SIGNAL_SECRET=$(openssl rand -hex 16) docker compose up    # Postgres + pgvector + the service, migrated
+SIGNAL_SECRET=<same> bun run send-signal                   # fire a signed signal at it
+```
+
+Durable state (incident memory, notify CAS, kill switch, auto-action ledger) now lives in Postgres
+and survives restarts. Using your own Postgres instead: set `DATABASE_URL`, run `bun run migrate`,
+then `bun run start`.
+
+### Add the real edges (optional keys)
+
+The RCA hypothesis model (Claude) and delivery channel (Telegram) are adapters behind interfaces —
+the service runs on fakes without them. To enable: `cp connectors/.env.example connectors/.env`,
+fill in the keys, restart. Details: [`connectors/README.md`](connectors/README.md).
+
+```bash
+bun test packages    # the whole product's test suite
+```
+
+This repo is two things: a **reconciled design** (the root markdown docs, adversarially reviewed —
+start with `ARCHITECTURE-REFRAMED.md`) and a **working product** — the `@sho/*` packages that compose
+into a runnable service, verified against real Postgres + pgvector.
 
 ## 🌐 Ecosystem
 

@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **60-second onboarding**: `bun run demo` (zero-config live demo of the whole pipeline over real
+  HTTP — grounded CONFIRMED, honest ESCALATE with named missing evidence, spoof rejection,
+  injection flagging, duplicate suppression), `bun run migrate` (migration CLI), `bun run
+  send-signal` (signed-webhook example client), `docker-compose.yml` (Postgres + pgvector + the
+  service), README restructured demo-first, and a fresh-clone demo smoke in CI.
 - Optional platform adapters for the AgenticProduct ecosystem: AgenticOps
   (Telemetry + Backlog), AgenticMind (incident memory over the MCP contract),
   APL (OTel-shaped agent-performance telemetry) — each behind a `@sho/contracts`
