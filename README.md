@@ -42,11 +42,15 @@ Durable state (incident memory, notify CAS, kill switch, auto-action ledger) now
 and survives restarts. Using your own Postgres instead: set `DATABASE_URL`, run `bun run migrate`,
 then `bun run start`.
 
-### Add the real edges (optional keys)
+### → Use it for real
 
-The RCA hypothesis model (Claude) and delivery channel (Telegram) are adapters behind interfaces —
-the service runs on fakes without them. To enable: `cp connectors/.env.example connectors/.env`,
-fill in the keys, restart. Details: [`connectors/README.md`](connectors/README.md).
+Point your **Sentry** at `/webhook/sentry` (native — no shim), turn on **grounded diagnosis** with a
+local repo checkout (`RCA_GIT_REPO`) and Claude (`ANTHROPIC_API_KEY`), deliver to **Telegram** with
+tap-to-ack, and operate it over HTTP (`GET /status`, `GET /incidents`, signed `POST /kill|/release`).
+The full day-2 walkthrough — connect telemetry → ground RCA → operate — is [`USAGE.md`](USAGE.md).
+
+Every capability is an opt-in env var; the service runs without any of them (on fakes). Copy
+`connectors/.env.example` → `connectors/.env` and fill in what you want.
 
 ```bash
 bun test packages    # the whole product's test suite

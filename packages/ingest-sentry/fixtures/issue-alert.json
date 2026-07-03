@@ -1,0 +1,36 @@
+{
+  "action": "created",
+  "installation": { "uuid": "0b3f0e0e-2f1a-4c5a-9e3a-8b7c6d5e4f30" },
+  "data": {
+    "issue": {
+      "id": "5541230981",
+      "shareId": null,
+      "shortId": "CHECKOUT-API-3F",
+      "title": "TypeError: Cannot read properties of undefined (reading 'total')",
+      "culprit": "computeCartTotal(src/checkout/cart.ts)",
+      "level": "error",
+      "status": "unresolved",
+      "substatus": "new",
+      "type": "error",
+      "metadata": {
+        "type": "TypeError",
+        "value": "Cannot read properties of undefined (reading 'total')",
+        "filename": "src/checkout/cart.ts"
+      },
+      "project": {
+        "id": "1234567",
+        "name": "checkout-api",
+        "slug": "checkout-api",
+        "platform": "node"
+      },
+      "count": "437",
+      "userCount": 128,
+      "firstSeen": "2026-07-02T11:58:07.000000Z",
+      "lastSeen": "2026-07-02T12:04:41.000000Z",
+      "permalink": "https://acme.sentry.io/issues/5541230981/",
+      "url": "https://sentry.io/api/0/organizations/acme/issues/5541230981/",
+      "web_url": "https://acme.sentry.io/issues/5541230981/"
+    }
+  },
+  "actor": { "type": "user", "id": "42", "name": "alert-rules" }
+}

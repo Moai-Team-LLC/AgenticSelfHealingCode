@@ -8,6 +8,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Usable end-to-end** (day-2 path — connect telemetry → ground RCA → operate, see `USAGE.md`):
+  native **Sentry webhook ingestion** (`@sho/ingest-sentry` — real `sentry-hook-signature`, grouping-id
+  fingerprint) on `/webhook/sentry`; a **real git-backed RCA tool** (`@sho/rca-git` — deploy-diff/blame/log
+  over read-only git) that unblocks grounded CONFIRMED verdicts via `RCA_GIT_REPO`; an **operational HTTP
+  surface** (`GET /incidents`, `GET /status`, signed `POST /kill|/release`, `POST /telegram/callback` for
+  tap-to-ack); ecosystem `TelemetrySink` emission per incident.
 - **60-second onboarding**: `bun run demo` (zero-config live demo of the whole pipeline over real
   HTTP — grounded CONFIRMED, honest ESCALATE with named missing evidence, spoof rejection,
   injection flagging, duplicate suppression), `bun run migrate` (migration CLI), `bun run

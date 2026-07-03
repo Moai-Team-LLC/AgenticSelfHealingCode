@@ -27,6 +27,8 @@
       "@sho/adapter-agenticops": ["packages/adapter-agenticops/src/index.ts"],
       "@sho/adapter-agenticmind": ["packages/adapter-agenticmind/src/index.ts"],
       "@sho/adapter-apl": ["packages/adapter-apl/src/index.ts"],
+      "@sho/ingest-sentry": ["packages/ingest-sentry/src/index.ts"],
+      "@sho/rca-git": ["packages/rca-git/src/index.ts"],
       "@sho/app": ["packages/app/src/index.ts"]
     }
   }

@@ -1,0 +1,74 @@
+{
+  "action": "triggered",
+  "installation": { "uuid": "0b3f0e0e-2f1a-4c5a-9e3a-8b7c6d5e4f30" },
+  "data": {
+    "event": {
+      "event_id": "9f6a2c1b4d7e4f8a9b0c1d2e3f405162",
+      "project": 1234567,
+      "project_slug": "checkout-api",
+      "issue_id": "5541230981",
+      "issue_url": "https://sentry.io/api/0/issues/5541230981/",
+      "url": "https://sentry.io/api/0/projects/acme/checkout-api/events/9f6a2c1b4d7e4f8a9b0c1d2e3f405162/",
+      "web_url": "https://acme.sentry.io/issues/5541230981/events/9f6a2c1b4d7e4f8a9b0c1d2e3f405162/",
+      "title": "TypeError: Cannot read properties of undefined (reading 'total')",
+      "culprit": "computeCartTotal(src/checkout/cart.ts)",
+      "level": "error",
+      "platform": "node",
+      "timestamp": 1719936000.123,
+      "datetime": "2026-07-02T12:00:00.123000Z",
+      "metadata": {
+        "type": "TypeError",
+        "value": "Cannot read properties of undefined (reading 'total')"
+      },
+      "tags": [
+        ["level", "error"],
+        ["environment", "production"],
+        ["release", "checkout-api@2.14.0"],
+        ["server_name", "web-7c9f8"]
+      ],
+      "exception": {
+        "values": [
+          {
+            "type": "TypeError",
+            "value": "Cannot read properties of undefined (reading 'total')",
+            "stacktrace": {
+              "frames": [
+                {
+                  "filename": "node:internal/main/run_main_module",
+                  "abs_path": "node:internal/main/run_main_module",
+                  "function": "<anonymous>",
+                  "lineno": 23,
+                  "in_app": false
+                },
+                {
+                  "filename": "src/server/handler.ts",
+                  "abs_path": "/app/src/server/handler.ts",
+                  "module": "server.handler",
+                  "function": "handleCheckout",
+                  "lineno": 88,
+                  "colno": 12,
+                  "in_app": true
+                },
+                {
+                  "filename": "src/checkout/cart.ts",
+                  "abs_path": "/app/src/checkout/cart.ts",
+                  "module": "checkout.cart",
+                  "function": "computeCartTotal",
+                  "lineno": 142,
+                  "colno": 25,
+                  "in_app": true
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "triggered_rule": "High error volume on checkout",
+    "issue_alert": {
+      "title": "High error volume on checkout",
+      "settings": []
+    }
+  },
+  "actor": { "type": "application", "id": "sentry", "name": "Sentry" }
+}
