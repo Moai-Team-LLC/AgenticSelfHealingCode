@@ -70,7 +70,7 @@ open standard plus its reference implementations:
 | 📐  | [agentic-product-standard](https://github.com/Moai-Team-LLC/agentic-product-standard)              | **The standard** — autonomy ladder, composition patterns, the harness layers, eval discipline. Start here. |
 | 🧠  | [AgenticMind](https://github.com/Moai-Team-LLC/AgenticMind)                                         | **Knowledge & memory** — citation-enforced answers, replayable why-trace, judge-gated learning over MCP. |
 | 🚦  | [AgenticOps](https://github.com/Moai-Team-LLC/AgenticOps)                                           | **Fleet operations** — manifests, backlog, scheduler, telemetry, policy for running agent fleets.        |
-| 📊  | Agent Performance Layer (APL)                                                                       | **Observability & evals** — OTel-based traces, golden-set evals, failure clusters. Public release in progress. |
+| 📈  | [AgenticPerformance](https://github.com/Moai-Team-LLC/AgenticPerformance)                          | **Observability, evals & improvement** — OTel trace ingest, golden-set evals, error taxonomy, failure clusters, the governed improvement loop. Ingests Mind + Ops via adapters; its failure signals feed this repo. |
 | 🩺  | **AgenticSelfHealingCode** (this repo)                                                              | **Self-healing ops** — incident diagnosis (RCA copilot), test-suite healing, outcome-earned autonomy, verification gates. |
 
 How this repo composes with each sibling — including the ports/adapters already built — is specified
