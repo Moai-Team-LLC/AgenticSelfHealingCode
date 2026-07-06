@@ -19,7 +19,7 @@ export interface RepairRecord {
   prUrl: string
   accountableOwner: string // = trust_class.owner (D9)
   gateResult: GateResult
-  status: 'proposed' | 'confirmed' | 'rejected'
+  status: 'proposed' | 'confirmed' | 'rejected' | 'needs_regate'
 }
 
 export class RepairIndex {

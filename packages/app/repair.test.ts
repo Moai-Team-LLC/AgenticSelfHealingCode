@@ -1,7 +1,7 @@
 import { test, expect } from 'bun:test'
 import { createHmac } from 'node:crypto'
 import { InMemoryIncidentMemory } from '@sho/incident-memory'
-import { NotifyStore, InMemoryAutoActionStore } from '@sho/orchestrator'
+import { NotifyStore, InMemoryAutoActionStore, KillSwitch } from '@sho/orchestrator'
 import { ApprovalQueue } from '@sho/hitl'
 import { criticalityFromMap } from '@sho/aggregation'
 import { InMemoryTelemetry } from '@sho/contracts'
@@ -43,6 +43,7 @@ function makeDeps(over: Partial<RepairDeps> = {}) {
   const index = new RepairIndex()
   const publisher = new RecordingPublisher()
   const telemetry = new InMemoryTelemetry()
+  const killSwitch = new KillSwitch(Date.now(), 30_000, 'release-tok')
   const repair: RepairDeps = {
     author: new FakeRepairAuthor(fakeStaged()),
     runGate: passGate(),
@@ -57,11 +58,11 @@ function makeDeps(over: Partial<RepairDeps> = {}) {
   }
   const deps: AppDeps = {
     mem: new InMemoryIncidentMemory(), notify: new NotifyStore(), criticality: criticalityFromMap({ checkout: 5 }),
-    secret: SECRET, telemetry, oplog: new IncidentLog(), telegramWebhookSecret: 'tg-secret',
+    secret: SECRET, telemetry, oplog: new IncidentLog(), telegramWebhookSecret: 'tg-secret', killSwitch,
     toolOverrides: { repro: demoRepro, trace: demoTrace, git: new FakeGitBlameLog([{ path: 'src/checkout/price.ts', hunk: '@@ -12,7 +12,7 @@' }]), llm: demoLlm },
     repair,
   }
-  return { deps, handler: createFetchHandler(deps), approvals, store, index, publisher, telemetry }
+  return { deps, handler: createFetchHandler(deps), approvals, store, index, publisher, telemetry, killSwitch }
 }
 
 async function propose(handler: (r: Request) => Promise<Response>, id = 'inc-repair-1') {
@@ -92,6 +93,7 @@ test('channel 1 — GitHub PR merge webhook confirms → human_approved loop-C l
   await propose(handler)
   const rec = index.list()[0]!
 
+  // The gated tip is what merged (head.sha === rec.fixSha) → land, and land the GATED sha, not the merge commit.
   const payload = JSON.stringify({ action: 'closed', pull_request: { number: rec.prNumber, merged: true, merge_commit_sha: 'mergesha9', head: { sha: rec.fixSha }, merged_by: { login: 'alice' } } })
   const res = await handler(new Request('http://x/webhook/github', { method: 'POST', headers: { 'x-hub-signature-256': ghSign(payload) }, body: payload }))
   const body = (await res.json()) as { ok: boolean; landed: boolean; actionId: string }
@@ -102,9 +104,41 @@ test('channel 1 — GitHub PR merge webhook confirms → human_approved loop-C l
   expect(landings).toHaveLength(1)
   expect(landings[0]!.applied_by).toBe('human_approved')
   expect(landings[0]!.loop).toBe('C')
-  expect(landings[0]!.fix_sha).toBe('mergesha9') // the merge commit is what landed
+  expect(landings[0]!.fix_sha).toBe(rec.fixSha) // the GATED commit, never the ungated merge commit
   expect(landings[0]!.accountable_owner).toBe('team-checkout') // = trust_class.owner, not the merger
   expect(index.byApprovalId(rec.approvalId)!.status).toBe('confirmed')
+})
+
+test('stale gate: merged head differs from the gated sha → NO landing, needs_regate', async () => {
+  const { handler, store, index } = makeDeps()
+  await propose(handler)
+  const rec = index.list()[0]!
+  // a human pushed a new commit after the gate passed → head.sha != the gated fixSha
+  const payload = JSON.stringify({ action: 'closed', pull_request: { number: rec.prNumber, merged: true, merge_commit_sha: 'm9', head: { sha: 'edited-after-gate' }, merged_by: { login: 'alice' } } })
+  const res = await handler(new Request('http://x/webhook/github', { method: 'POST', headers: { 'x-hub-signature-256': ghSign(payload) }, body: payload }))
+  const body = (await res.json()) as { landed: boolean; regate: boolean }
+  expect(body.landed).toBe(false)
+  expect(body.regate).toBe(true)
+  expect(store.listByClass(rec.classKey)).toHaveLength(0) // never stamped a stale PASS onto ungated code
+  expect(index.byApprovalId(rec.approvalId)!.status).toBe('needs_regate')
+})
+
+test('kill switch engaged after propose → confirm refuses to land (both channels)', async () => {
+  const { handler, store, index, killSwitch } = makeDeps()
+  await propose(handler)
+  const rec = index.list()[0]!
+  await killSwitch.engage() // freeze AFTER the proposal exists
+
+  // GitHub merge during the freeze → not landed
+  const gh = JSON.stringify({ action: 'closed', pull_request: { number: rec.prNumber, merged: true, head: { sha: rec.fixSha }, merged_by: { login: 'alice' } } })
+  const r1 = await handler(new Request('http://x/webhook/github', { method: 'POST', headers: { 'x-hub-signature-256': ghSign(gh) }, body: gh }))
+  expect((await r1.json()).landed).toBe(false)
+
+  // Telegram approve during the freeze → not landed
+  const tg = JSON.stringify({ callback_query: { id: 'cq9', data: `approve:${rec.approvalId}`, from: { username: 'oncall_jane' } } })
+  await handler(new Request('http://x/telegram/callback', { method: 'POST', headers: { 'x-telegram-bot-api-secret-token': 'tg-secret' }, body: tg }))
+
+  expect(store.listByClass(rec.classKey)).toHaveLength(0)
 })
 
 test('GitHub webhook with a bad signature → 401, no landing', async () => {

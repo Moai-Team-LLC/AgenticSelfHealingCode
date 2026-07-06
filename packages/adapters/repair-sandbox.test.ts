@@ -64,6 +64,13 @@ test('a diff that applies but does NOT fix → flippedGreen is false (booleans a
   expect(staged.fixFlippedReproGreen).toBe(false) // the bug remains → downstream runRepair blocks it
 })
 
+test('mutation set is derived from the diff, not the declaration (undeclared touched file gets covered)', async () => {
+  // The author declares NO source files, but the diff writes src/calc.js — it must end up in sourceFiles so
+  // the mutation gate covers it (else a fix in an undeclared file gets zero mutation coverage).
+  const staged = (await author({ sourceFiles: [] }).author(ctx))!
+  expect(staged.sourceFiles).toContain('src/calc.js')
+})
+
 test('a malformed diff (does not apply) → author declines (null), never crashes', async () => {
   const staged = await author({ diff: 'this is not a diff' }).author(ctx)
   expect(staged).toBeNull()

@@ -86,10 +86,16 @@ export function sandboxedRepairAuthor(deps: SandboxedRepairAuthorDeps): RepairAu
 
         // The paths the diff ACTUALLY writes (from its headers) unioned with the author's declaration — never
         // trust the self-report alone (a steered author could under-declare to slip a protected write past).
-        const touchedPaths = [...new Set([...proposal.touchedPaths, ...pathsFromUnifiedDiff(proposal.diff)])]
+        const diffPaths = pathsFromUnifiedDiff(proposal.diff)
+        const touchedPaths = [...new Set([...proposal.touchedPaths, ...diffPaths])]
 
         // Defense in depth: block a protected-path write BEFORE any execution (runRepair blocks again).
         if (protectedPathsTouched(touchedPaths).length > 0) return null
+
+        // The set the gate MUTATES is derived from the real diff, not the author's declared sourceFiles: every
+        // non-test source file the diff writes must be mutation-covered, or a fix in an undeclared file gets none.
+        const isTest = (p: string) => p === proposal.testPath || /\.(test|spec)\.[cm]?[jt]sx?$/.test(p)
+        const sourceFiles = [...new Set([...proposal.sourceFiles, ...diffPaths.filter((p) => !isTest(p))])]
 
         // §4.1 step 1 — write the regression test, run on PARENT: it must FAIL (the signal reproduces).
         s.writeFile(proposal.testPath, proposal.testSource)
@@ -110,7 +116,7 @@ export function sandboxedRepairAuthor(deps: SandboxedRepairAuthorDeps): RepairAu
           parentSha: s.baseSha,
           fixSha,
           testPaths: [proposal.testPath],
-          sourceFiles: proposal.sourceFiles,
+          sourceFiles, // real union (declared ∪ diff-derived source) — so the mutation gate covers every touched file
           touchedPaths, // the real union (declared ∪ diff-derived) — so runRepair's re-check sees actual paths
           reproReproducedSignal,
           fixFlippedReproGreen,

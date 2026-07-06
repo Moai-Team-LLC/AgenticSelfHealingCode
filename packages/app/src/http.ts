@@ -98,12 +98,22 @@ export function createFetchHandler(deps: AppDeps): (req: Request) => Promise<Res
       if (!merged) return json({ ok: true, ignored: 'not a merged PR' }) // pings/opens/closed-without-merge
       const rec = repair.index.byPrNumber(merged.number)
       if (!rec) return json({ ok: true, ignored: 'no tracked repair for this PR' })
+      // STALE-GATE GUARD: the gate result attests to exactly rec.fixSha (the tip we authored + gated). If the
+      // branch head moved after the gate passed (a human edit / force-push), the cached PASS no longer
+      // describes the merged code — refuse to stamp a stale gate onto a different commit. Re-gate required.
+      if (merged.headSha && merged.headSha !== rec.fixSha) {
+        repair.index.setStatus(rec.approvalId, 'needs_regate')
+        return json({ ok: true, landed: false, ignored: 'merged head differs from the gated sha — re-gate required', regate: true })
+      }
+      // KILL-AT-CONFIRM: no landing while frozen — a fix proposed before a kill must not merge through it.
+      if (deps.killSwitch && (await deps.killSwitch.isKilled(now()))) return json({ ok: true, landed: false, ignored: 'system frozen (kill switch)' })
       try {
         const res = await confirmRepair(
           {
+            // NO mergedFixSha → land rec.fixSha, the exact commit the gate ran on (never the ungated merge commit).
             approvalId: rec.approvalId, verdictBy: `github:${merged.mergedBy}`, parentSha: rec.parentSha,
             moduleArea: rec.moduleArea, classKey: rec.classKey, accountableOwner: rec.accountableOwner,
-            gateResult: rec.gateResult, mergedFixSha: merged.mergeCommitSha || merged.headSha || rec.fixSha,
+            gateResult: rec.gateResult,
           },
           { approvals: repair.approvals, store: repair.store, nowMs: now(), telemetry: deps.telemetry },
         )
@@ -159,6 +169,8 @@ async function handleRepairCallback(
   if (!rec) return 'no matching proposal'
   try {
     if (action === 'approve') {
+      // no landing while frozen (kill switch) — a human approving must not merge through a freeze.
+      if (deps.killSwitch && (await deps.killSwitch.isKilled(now()))) return 'system frozen (kill switch engaged)'
       const res = await confirmRepair(
         {
           approvalId: rec.approvalId, verdictBy: by, parentSha: rec.parentSha, moduleArea: rec.moduleArea,

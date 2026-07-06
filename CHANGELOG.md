@@ -36,13 +36,27 @@ All notable changes to this project are documented here. The format follows
 
 ### Security
 
-- **Protected-path check now operates on the diff's ACTUAL paths**, not the author's self-declared
-  `touchedPaths` (`pathsFromUnifiedDiff`). A steered/malicious author that under-declares can no longer slip a
-  protected write past the in-process guard. (The authoritative guard in production remains the server-side CI
-  path-guard + branch protection, SECURITY §5.2; this is defense in depth.) Found by an adversarial red-team audit.
-- **Dependency manifests + lockfiles are now protected** (`package.json`, `*-lock.*`, `go.mod`, `Cargo.*`, …)
-  — an autonomous code-repair worker never changes dependencies (SECURITY §4.4); a genuine dep change escalates
-  to a human. Found by the same audit.
+All of the below were surfaced by an adversarial red-team audit of the pipeline (12 harm families → 30 attack
+scenarios verified against the real code). Fixed in-process:
+
+- **Stale-gate landing (was critical).** The GitHub merge path stamped the *merge commit* (or a force-pushed
+  head) with the proposal's *cached* gate result — so an edited branch could land unverified code under a
+  truthful-looking PASS. Now: the confirm requires the merged head sha to equal the exact commit the gate ran
+  on; if the branch moved, it refuses to land and flags `needs_regate`. The landing records the **gated** sha,
+  never the ungated merge commit.
+- **Kill-switch race at confirm.** The confirm handlers now re-check the kill bit — a fix proposed before a
+  freeze can no longer merge through it (neither channel lands while killed).
+- **Mutation coverage now follows the diff.** The mutated set is derived from the diff's actual source files,
+  not the author's self-declared `sourceFiles`, so a fix in an undeclared file can't dodge the mutation gate.
+- **Protected-path check operates on the diff's ACTUAL paths** (`pathsFromUnifiedDiff`), not the author's
+  self-declared `touchedPaths` — an under-declaring author can't slip a protected write past. (Server-side CI
+  path-guard + branch protection remain authoritative, SECURITY §5.2; this is defense in depth.)
+- **Dependency manifests + lockfiles are now protected** (`package.json`, `*-lock.*`, `go.mod`, `Cargo.*`, …).
+
+Known, tracked as follow-ups (not yet closed): the `RepairIndex` is still in-memory (a crash between propose
+and merge drops the landing); `no-weakening` checks only the declared test path (not every touched test file);
+the churn escalator (diff-stacking guard, `TRUST-CONTROLLER.md` §4.1) is specified but unimplemented. All three
+matter most for durability / the deferred auto-apply path; at L1 every merge is still human-reviewed.
 
 ### Fixed
 
