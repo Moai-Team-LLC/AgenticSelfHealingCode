@@ -60,22 +60,22 @@ This repo is two things: a **reconciled design** (the root markdown docs, advers
 start with `ARCHITECTURE-REFRAMED.md`) and a **working product** — the `@sho/*` packages that compose
 into a runnable service, verified against real Postgres + pgvector.
 
-## 🌐 Ecosystem
+## 🌐 The AgenticProduct ecosystem
 
-AgenticSelfHealingCode is the **operations-recovery member** of the AgenticProduct family — the
-open standard plus its reference implementations:
+One standard and five reference implementations you can run — together they close the loop every production agent needs: **run → remember → measure → heal**, with security as a cross-cutting assurance plane.
 
-|     | Repo                                                                                              | Role — use it when                                                                                     |
-| --- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| 📐  | [agentic-product-standard](https://github.com/Moai-Team-LLC/agentic-product-standard)              | **The standard** — autonomy ladder, composition patterns, the harness layers, eval discipline. Start here. |
-| 🧠  | [AgenticMind](https://github.com/Moai-Team-LLC/AgenticMind)                                         | **Knowledge & memory** — citation-enforced answers, replayable why-trace, judge-gated learning over MCP. |
-| 🚦  | [AgenticOps](https://github.com/Moai-Team-LLC/AgenticOps)                                           | **Fleet operations** — manifests, backlog, scheduler, telemetry, policy for running agent fleets.        |
-| 📈  | [AgenticPerformance](https://github.com/Moai-Team-LLC/AgenticPerformance)                          | **Observability, evals & improvement** — OTel trace ingest, golden-set evals, error taxonomy, failure clusters, the governed improvement loop. Ingests Mind + Ops via adapters; its failure signals feed this repo. |
-| 🩺  | **AgenticSelfHealingCode** (this repo)                                                              | **Self-healing ops** — incident diagnosis (RCA copilot), test-suite healing, outcome-earned autonomy, verification gates. |
+|  | Project | Role |
+|---|---|---|
+| 📐 | [agentic-product-standard](https://github.com/Moai-Team-LLC/agentic-product-standard) | The contract — principles, the autonomy ladder, the harness layers, and eval discipline (plus a Claude Code skill set). |
+| ⚙️ | [AgenticOps](https://github.com/Moai-Team-LLC/AgenticOps) | Runtime & operations — deployable manifests, scheduling, a durable backlog, a bounded runner, and fleet health. |
+| 🧠 | [AgenticMind](https://github.com/Moai-Team-LLC/AgenticMind) | Knowledge & memory — auditable, self-improving, citation-enforced, over MCP; Postgres-only. |
+| 📈 | [AgenticPerformance](https://github.com/Moai-Team-LLC/AgenticPerformance) | Evals & observability — OTel traces, golden-set evals with a CI gate, failure clusters, and the improvement loop. |
+| 🩹 | **AgenticSelfHealingCode** (this repo) | Self-healing ops — production monitoring, incident diagnosis/RCA, and test-suite healing on earned autonomy. |
+| 🛡️ | [AgenticAssurance](https://github.com/Moai-Team-LLC/AgenticAssurance) | Security & assurance — red-teams any agent (OWASP Agentic + MITRE ATLAS), a toxic-flow graph, and SARIF output. |
 
-How this repo composes with each sibling — including the ports/adapters already built — is specified
-in [`INTEGRATIONS.md`](INTEGRATIONS.md); conformance to the standard is mapped in
-[`CONFORMANCE.md`](CONFORMANCE.md).
+**How they compose.** **AgenticOps** runs the fleet, **AgenticMind** gives agents auditable knowledge & memory, **AgenticPerformance** measures every run with traces and evals, and **AgenticSelfHealingCode** repairs what breaks — closing the **run → remember → measure → heal** loop. **AgenticAssurance** red-teams any agent in that loop for security, and the whole stack conforms to the **[agentic-product-standard](https://github.com/Moai-Team-LLC/agentic-product-standard)**.
+
+How this repo composes with each sibling — including the ports/adapters already built — is specified in [`INTEGRATIONS.md`](INTEGRATIONS.md); conformance to the standard is mapped in [`CONFORMANCE.md`](CONFORMANCE.md).
 
 ## The one-line reframe
 
