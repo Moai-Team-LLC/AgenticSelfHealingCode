@@ -16,9 +16,15 @@ Postgres state machine as everything else (`ORCHESTRATION.md`). Cross-cutting in
 everywhere: replayable why-trace, immutable hash-chained audit log (`SECURITY-THREATMODEL.md`
 §7.2), kill switch honored (§7).
 
-**Status: DEFERRED. Not built first. Not built in v1.** Built now: nothing in this doc. Earned
-later, per-class, on this system's own measured outcome data. This spec exists so that *when* a
-class becomes eligible, the path is already governed — never bolted on after the fact
+**Status (updated).** The *autonomous* rung — **L2/L3 auto-apply, no human in the loop** — is
+DEFERRED: earned later, per-class, on this system's own measured outcome data; nothing in this doc
+about auto-apply is built. But the **L1 rung this doc already specified as the v1 behavior** (§5.1:
+*"every Loop C fix is an L1 PR for HITL, propose-only, human-merged, never auto-merged"*) is now
+**BUILT** — package **`@sho/loop-c`** (propose → grounded-repro invariant → non-LLM gate → PR + L1
+approval → human confirms via PR merge **or** Telegram → `human_approved` landing). This matches the
+Trust Controller's own base case (`effectiveLevel` returns L1 — *"nothing is auto by default"*). So
+"deferred" now means precisely **auto-apply is deferred**; human-confirmed repair is not. The spec still
+exists so that *when* a class earns L2/L3, the path is already governed — never bolted on after the fact
 (`TRUST-CONTROLLER.md` scope note).
 
 ---
@@ -428,7 +434,15 @@ outcome data after the D10 verdict, never architected first.
 | Upstream-of-write capabilities (signal, dedup, memory, orchestrator, gate, controller, HITL) | Yes | No — serve A, B, and C |
 | Loop A (RCA copilot) | if diagnosis-heavy | Yes (the v1 product) |
 | Loop B (test-suite self-healing) | **Yes, always** | No |
-| **Loop C (this spec)** | **No** | **Yes** — earned per-class on outcome (D6), after D10, never first |
+| **Loop C — L1 (propose + human-confirm, §5.1)** | **Yes** (`@sho/loop-c`) | No — it is the governed v1 rung |
+| **Loop C — L2/L3 (auto-apply, no human)** | **No** | **Yes** — earned per-class on outcome (D6), after D10, never first |
+
+The only remaining unbuilt piece for L1 to run against a live repo is the **sandboxed repair worker** — the
+Claude patch-proposer inside the ephemeral, secret-less, egress-denied container (§3, `SECURITY-THREATMODEL.md`
+§4) that authors the diff and drives the grounded repro cycle (§4). `@sho/loop-c` defines that worker as the
+`RepairAuthor` port (with in-memory fakes) and ships everything *around* it — the protected-path block, the
+grounded-repro invariant, the gate call, the PR channel, the L1 approval, and the `human_approved` landing —
+so activating it is plugging a governed brain into a built harness, never bolting governance on afterward.
 
 So when a `C_repair` class eventually earns L2/L3, no new machinery is written — the gate, the
 controller, the apply-time writer, the sandbox, the audit log, and the HITL ladder already exist

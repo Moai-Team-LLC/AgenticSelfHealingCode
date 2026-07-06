@@ -21,6 +21,7 @@
       "@sho/hitl": ["packages/hitl/src/index.ts"],
       "@sho/loop-a": ["packages/loop-a/src/index.ts"],
       "@sho/loop-b": ["packages/loop-b/src/index.ts"],
+      "@sho/loop-c": ["packages/loop-c/src/index.ts"],
       "@sho/signal-layer": ["packages/signal-layer/src/index.ts"],
       "@sho/pipeline": ["packages/pipeline/src/index.ts"],
       "@sho/adapters": ["packages/adapters/src/index.ts"],

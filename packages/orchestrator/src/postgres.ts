@@ -19,7 +19,10 @@ function hydrate(r: Record<string, unknown>): AutoAction {
     action_id: String(r.action_id), incident_id: String(r.incident_id), class_key: String(r.class_key),
     loop: r.loop as 'B' | 'C', applied_by: r.applied_by as 'machine' | 'human_approved',
     applied_at: new Date(r.applied_at as string).toISOString(), fix_sha: String(r.fix_sha), parent_sha: String(r.parent_sha),
-    gate_result: r.gate_result as AutoAction['gate_result'], accountable_owner: String(r.accountable_owner), module_area: String(r.module_area),
+    // jsonb comes back as a STRING from the driver (Bun SQL) — parse it so the frozen GateResult round-trips
+    // as an object (a raw cast would leave `.pass` undefined for every reader of the durable landing).
+    gate_result: (typeof r.gate_result === 'string' ? JSON.parse(r.gate_result) : r.gate_result) as AutoAction['gate_result'],
+    accountable_owner: String(r.accountable_owner), module_area: String(r.module_area),
   }
 }
 

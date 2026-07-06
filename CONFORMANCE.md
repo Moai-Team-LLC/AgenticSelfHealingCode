@@ -21,7 +21,7 @@ In the standard's vocabulary SHO is an **L1–L2 system**: a deterministic workf
 
 - **Least autonomous architecture.** SHO's whole product is `deterministic workflow with LLM steps` on the standard's preference ladder. The single LLM call (hypothesis proposal) is injected and awaited *outside* the deterministic core: `packages/loop-a/src/investigate.ts` is synchronous and pure; the real model lives in `packages/adapters/src/claude.ts` and its output re-enters via `FakeLlmClient(proposal)`. No L4 loop exists anywhere in the repo.
 - **Do not climb until earned.** The standard's transition rule is "≥90% pass on a curated eval set." SHO implements a *harder* runtime variant: per-incident-class promotion to auto-apply requires ≥30 confirmed-good **production outcomes** at ≥0.98 rate plus 14-day dwell (SHO-L2), and 100/0.99/45d (SHO-L3) — `DEFAULT_TRUST_CONFIG` in `packages/trust-controller/src/control.ts`. Demotion is immediate on a single caused-incident (`meetsGate` clean-window check). Autonomy is earned on outcomes, never granted in advance — which is the doctrine's intent. What SHO lacks is the *eval-set* leg of that rule (see GAPS #1, #2).
-- **"L4 is the last resort" taken literally.** The only candidate for open-ended autonomy — production-code repair — is demoted to a deferred tail (`LOOP-C-DEFERRED.md`), never architected first (D5, D10 in `DECISIONS.md`).
+- **"L4 is the last resort" taken literally.** The only candidate for open-ended autonomy — *autonomous* (no-human) production-code repair (Loop C L2/L3) — is demoted to a deferred tail (`LOOP-C-DEFERRED.md`), never architected first (D5, D10 in `DECISIONS.md`). The *human-confirmed* rung (Loop C L1) is built (`@sho/loop-c`): propose → gate → human merges/approves, never auto-applies.
 - **Composition patterns.** Routing: `packages/orchestrator/src/router.ts` (class → gate tuple) and the Loop B A/B/C/D discriminator (`packages/loop-b/src/discriminator.ts`). Evaluator-optimizer: present in inverted, non-looping form — the generator (LLM proposal) is paired with a **non-LLM critic** (the verification gate, `gate/verify.ts`), but a rejection goes to a human, never back into a re-prompt loop. That is deliberate (no hidden repair loop), not an omission.
 
 ## Doctrine 2 — Harness Over Model
@@ -114,7 +114,7 @@ Crosswalk of the standard's P-tiers onto SHO's action tiers:
 | Standard P-tier | SHO equivalent | Enforcement |
 |---|---|---|
 | P0 read | Tier 1 / Loop A (all tools read-only) | structural — no write tool exists; anti-criterion test |
-| P1 draft | Loop B heal / Loop C fix as PR (SHO-L1: propose, human merges) | router + crosswalk; `applied_by='human_approved'` |
+| P1 draft | Loop B heal / Loop C fix as PR (SHO-L1: propose, human merges) — built in `@sho/loop-c` | router + crosswalk; `applied_by='human_approved'` (both PR-merge + Telegram confirm channels) |
 | P2 internal write | Loop B flaky quarantine — the one autonomous merge, test-tag-only | bounded server-side (`SECURITY-THREATMODEL.md` §5.1) |
 | P3 external write | Loop C auto-apply (deferred; earned per-class) | proven-reversible + business-hours + named owner (D9), all preconditions in `ARCHITECTURE-REFRAMED.md` §3.4 |
 | P5 communication | HITL notifier (the approval channel itself) | durable `approval_request` row is source of truth; message is a view |

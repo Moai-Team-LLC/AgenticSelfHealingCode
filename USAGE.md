@@ -106,13 +106,41 @@ BODY="{\"token\":\"$KILL_RELEASE_TOKEN\"}"; curl -X POST localhost:3000/release 
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | Deliver why-traces to on-call. |
 | `TELEGRAM_WEBHOOK_SECRET` | Auth for the `/telegram/callback` endpoint. |
 | `KILL_RELEASE_TOKEN` | The token required to `release` the kill switch. |
+| `GITHUB_WEBHOOK_SECRET` | Enables the `/webhook/github` PR-merge confirm channel (Loop C L1). |
+| `GITHUB_TOKEN` / `GITHUB_REPO` | Open the Loop C proposal PR (`pull-requests:write`) against `owner/name`. |
 | `PORT` | Listen port (default 3000). |
+
+## 5. Turn on human-confirmed code repair (Loop C, L1)
+
+Optional. When configured, a grounded **CONFIRMED** *code* diagnosis becomes a **proposed pull request** for
+a human to merge — never an auto-apply. The proposal is only surfaced *after* it clears the non-LLM gate
+(must-fail-on-parent + mutation + no-weakening), so a human reviews a diff that already reproduced the bug and
+flipped it green. A human confirms in **either** channel:
+
+- **GitHub PR merge** — merging the PR is the approval. Point a `pull_request` webhook at `/webhook/github`
+  (`x-hub-signature-256` verified against `GITHUB_WEBHOOK_SECRET`); on merge SHO records a `human_approved`
+  landing (loop C).
+- **Telegram** — the proposal notice carries `approve` / `reject` buttons; a tap routes to the same landing.
+
+```bash
+GITHUB_WEBHOOK_SECRET=$(openssl rand -hex 16)   # secret set on the GitHub webhook
+GITHUB_TOKEN=…                                   # fine-grained token, pull-requests:write (never committed)
+GITHUB_REPO=owner/name                           # the monitored repo the PR opens against
+```
+
+It **never auto-applies**: fully-autonomous repair (L2/L3) stays deferred, earned per incident-class on
+measured outcomes (`TRUST-CONTROLLER.md`). Protected paths — auth, billing, infra, migrations, CI, secrets —
+are never touched at any level. The one piece you supply is the **repair worker** (`RepairAuthor`) that authors
+the candidate diff inside the sandbox; `@sho/loop-c` ships everything around it (gate, PR channel, approval
+ladder, landing) plus in-memory fakes to run the whole loop offline. See
+[`LOOP-C-DEFERRED.md`](LOOP-C-DEFERRED.md) §5 and [`SECURITY-THREATMODEL.md`](SECURITY-THREATMODEL.md) §4.
 
 ## What this is (and isn't) yet
 
-Today's product: **grounded incident diagnosis → delivery → human ack**, plus test-suite self-healing
-(`loop-b`) and the verification gates (`gate/`) as CI-side tools, and the D10 instrument for deciding
-where to invest. Autonomous production-code repair (Loop C) is deferred by design — earned per
-incident-class on measured outcomes, never on first contact. See
+Today's product: **grounded incident diagnosis → delivery → human ack**, plus **human-confirmed code repair**
+(`@sho/loop-c`, L1 — propose → gate → PR/Telegram confirm → `human_approved` landing), test-suite
+self-healing (`loop-b`), the verification gates (`gate/`) as CI-side tools, and the D10 instrument for
+deciding where to invest. **Autonomous** production-code repair (Loop C L2/L3, no human in the loop) is
+deferred by design — earned per incident-class on measured outcomes, never on first contact. See
 [`ARCHITECTURE-REFRAMED.md`](ARCHITECTURE-REFRAMED.md) and [`CONFORMANCE.md`](CONFORMANCE.md) for the
 full picture and the honest gaps.
