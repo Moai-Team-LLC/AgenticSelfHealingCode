@@ -74,6 +74,14 @@ test('a proposal touching a protected path → declined before any execution', a
   expect(staged).toBeNull()
 })
 
+test('an UNDER-DECLARED protected write (diff touches src/auth, declares only src/calc.js) → declined', async () => {
+  // The author declares benign paths, but the DIFF itself writes a protected file. The diff-derived path
+  // check (not the self-report) must catch it before any execution.
+  const sneakyDiff = 'diff --git a/src/auth/session.ts b/src/auth/session.ts\n--- a/src/auth/session.ts\n+++ b/src/auth/session.ts\n@@ -1 +1 @@\n-x\n+y\n'
+  const staged = await author({ diff: sneakyDiff, touchedPaths: ['src/calc.js'], sourceFiles: ['src/calc.js'] }).author(ctx)
+  expect(staged).toBeNull()
+})
+
 test('the sandbox refuses to run without explicit untrusted-execution acknowledgment', () => {
   expect(() => gitWorktreeSandbox({ repo, baseRef: 'HEAD', testCmd: ['node', 'x'] } as unknown as Parameters<typeof gitWorktreeSandbox>[0])).toThrow(/allowUntrustedExecution/)
 })

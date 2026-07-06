@@ -17,7 +17,7 @@
  */
 
 import type { RepairAuthor, RepairContext, StagedPatch } from '@sho/loop-c'
-import { protectedPathsTouched } from '@sho/loop-c'
+import { protectedPathsTouched, pathsFromUnifiedDiff } from '@sho/loop-c'
 
 /** The read-only files the sandbox hands the proposer (its "code_search / git_read" surface). */
 export interface RepoFile {
@@ -84,8 +84,12 @@ export function sandboxedRepairAuthor(deps: SandboxedRepairAuthorDeps): RepairAu
         const proposal = await deps.propose(ctx, files)
         if (!proposal) return null
 
+        // The paths the diff ACTUALLY writes (from its headers) unioned with the author's declaration — never
+        // trust the self-report alone (a steered author could under-declare to slip a protected write past).
+        const touchedPaths = [...new Set([...proposal.touchedPaths, ...pathsFromUnifiedDiff(proposal.diff)])]
+
         // Defense in depth: block a protected-path write BEFORE any execution (runRepair blocks again).
-        if (protectedPathsTouched(proposal.touchedPaths).length > 0) return null
+        if (protectedPathsTouched(touchedPaths).length > 0) return null
 
         // §4.1 step 1 — write the regression test, run on PARENT: it must FAIL (the signal reproduces).
         s.writeFile(proposal.testPath, proposal.testSource)
@@ -107,7 +111,7 @@ export function sandboxedRepairAuthor(deps: SandboxedRepairAuthorDeps): RepairAu
           fixSha,
           testPaths: [proposal.testPath],
           sourceFiles: proposal.sourceFiles,
-          touchedPaths: proposal.touchedPaths,
+          touchedPaths, // the real union (declared ∪ diff-derived) — so runRepair's re-check sees actual paths
           reproReproducedSignal,
           fixFlippedReproGreen,
         }

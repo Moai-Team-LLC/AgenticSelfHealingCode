@@ -34,6 +34,16 @@ All notable changes to this project are documented here. The format follows
 - **Durable landing** — `confirmRepair` is now async and lands to either the in-memory store or
   `PgAutoActionStore`, so a `human_approved` row survives restart (verified live: `verify-loopc-pg.ts`, in CI).
 
+### Security
+
+- **Protected-path check now operates on the diff's ACTUAL paths**, not the author's self-declared
+  `touchedPaths` (`pathsFromUnifiedDiff`). A steered/malicious author that under-declares can no longer slip a
+  protected write past the in-process guard. (The authoritative guard in production remains the server-side CI
+  path-guard + branch protection, SECURITY §5.2; this is defense in depth.) Found by an adversarial red-team audit.
+- **Dependency manifests + lockfiles are now protected** (`package.json`, `*-lock.*`, `go.mod`, `Cargo.*`, …)
+  — an autonomous code-repair worker never changes dependencies (SECURITY §4.4); a genuine dep change escalates
+  to a human. Found by the same audit.
+
 ### Fixed
 
 - **`PgAutoActionStore` jsonb hydration** — the driver returns `jsonb` as a string; `gate_result` was cast
