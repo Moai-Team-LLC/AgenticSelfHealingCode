@@ -18,7 +18,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, rmSync, readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
-import type { RepairContext } from '@sho/loop-c'
+import type { RepairContext, RepairCheckResult } from '@sho/loop-c'
 import type { RepairSandbox, SandboxSession } from './repair-author'
 
 export interface GitWorktreeSandboxConfig {
@@ -32,6 +32,9 @@ export interface GitWorktreeSandboxConfig {
   timeoutMs?: number
   /** the fix branch is `${prefix}${incidentId}` (matches the GitHub publisher convention). Default 'sho/fix-'. */
   headBranchPrefix?: string
+  /** extra gate checks (the operator's local dev gates as hooks): each a named argv run on the fix worktree,
+   *  e.g. [{name:'typecheck', argv:['tsc','--noEmit']}, {name:'security', argv:['semgrep','--error']}]. Non-zero → fail. */
+  checks?: { name: string; argv: string[] }[]
   /** REQUIRED explicit acknowledgment that run() executes untrusted code inside the §4 container. */
   allowUntrustedExecution: true
 }
@@ -96,6 +99,16 @@ export function gitWorktreeSandbox(cfg: GitWorktreeSandboxConfig): RepairSandbox
             const err = e as { status?: number }
             return { exitCode: err.status ?? 1 }
           }
+        },
+        runNamedChecks(): RepairCheckResult[] {
+          return (cfg.checks ?? []).map((c) => {
+            try {
+              execFileSync(c.argv[0]!, c.argv.slice(1), { cwd: wt, timeout: timeoutMs, stdio: 'ignore' })
+              return { name: c.name, passed: true }
+            } catch {
+              return { name: c.name, passed: false }
+            }
+          })
         },
         commit(message) {
           git(wt, ['add', '-A'])

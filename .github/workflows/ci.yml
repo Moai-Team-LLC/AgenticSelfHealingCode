@@ -58,3 +58,5 @@ jobs:
         run: bun run packages/app/verify-app-pg.ts
       - name: Human-confirmed repair (durable landing, both channels)
         run: bun run packages/loop-c/verify-loopc-pg.ts
+      - name: Durable repair proposal index (survives restart)
+        run: bun run packages/app/verify-repair-pg.ts

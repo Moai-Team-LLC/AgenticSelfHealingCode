@@ -179,6 +179,15 @@ test('channel 2 — Telegram reject → REJECTED, no landing', async () => {
   expect(index.byApprovalId(rec.approvalId)!.status).toBe('rejected')
 })
 
+test('churn hold: a thrashing area is not auto-proposed into (floored to L0)', async () => {
+  const t = Date.now()
+  const { handler, index, publisher } = makeDeps({ churnActions: () => [t - 1000, t - 2000, t - 3000] }) // 3 in a burst
+  const r = await propose(handler)
+  expect(r.gate).toBe('CONFIRMED') // still diagnosed
+  expect(index.list()).toHaveLength(0) // but NOT proposed — the area is held
+  expect(publisher.published).toHaveLength(0)
+})
+
 test('kill switch off-path: with no repair deps, a CONFIRMED code diagnosis just diagnoses (no proposal)', async () => {
   const { deps } = makeDeps()
   const noRepair: AppDeps = { ...deps, repair: undefined }

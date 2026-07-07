@@ -53,10 +53,25 @@ scenarios verified against the real code). Fixed in-process:
   path-guard + branch protection remain authoritative, SECURITY §5.2; this is defense in depth.)
 - **Dependency manifests + lockfiles are now protected** (`package.json`, `*-lock.*`, `go.mod`, `Cargo.*`, …).
 
-Known, tracked as follow-ups (not yet closed): the `RepairIndex` is still in-memory (a crash between propose
-and merge drops the landing); `no-weakening` checks only the declared test path (not every touched test file);
-the churn escalator (diff-stacking guard, `TRUST-CONTROLLER.md` §4.1) is specified but unimplemented. All three
-matter most for durability / the deferred auto-apply path; at L1 every merge is still human-reviewed.
+All three audit follow-ups are now **closed**:
+
+- **Durable proposal index.** `RepairIndex` is now an interface with a `PgRepairIndex` (migration
+  `0008_repair_proposal`) — a proposal survives a restart, so a merge after a crash still confirms instead of
+  silently dropping the landing. Live-verified (`verify-repair-pg.ts`, in CI).
+- **`no-weakening` now covers every touched test file**, not just the declared new test — an edited existing
+  test can no longer strip its assertions to go green unaudited (`verify()` gains `weakenAlsoPaths`).
+- **Churn escalator implemented** (`churnHold`, `TRUST-CONTROLLER.md` §4.1): once `CHURN_MAX=3` actions land in
+  a `module_area` within a 6h burst, the area is held from further auto-proposals for 12h.
+
+### Added (repair worker hardening)
+
+- **Conventional Commits.** The repair worker's commit and the PR title are now `type(scope): description`
+  (e.g. `fix(checkout): guard null cart`), derived from the fix kind + module_area, with an incident-linking
+  body and a `Co-Authored-By: sho-repair` footer.
+- **Extensible gate-check chain.** The sandbox runs an operator-configured list of `{name, argv}` checks (your
+  local dev gates as hooks — `tsc --noEmit`, lint, `semgrep`, a doc-sync script, commit-lint). A failing check
+  escalates before the expensive mutation gate; results are posted in the PR body.
+- **PR reviewer checklist** — root-cause vs symptom, docs/CHANGELOG sync, blast radius.
 
 ### Fixed
 

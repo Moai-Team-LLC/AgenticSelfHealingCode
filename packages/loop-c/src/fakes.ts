@@ -81,6 +81,7 @@ export const failGate = (): RunGate => async () =>
 export function fakeStaged(over: Partial<StagedPatch> = {}): StagedPatch {
   return {
     summary: 'Guard against a null cart in price(); regression test added.',
+    commitSubject: 'fix(checkout): guard against a null cart in price()',
     repo: '/sandbox/checkout',
     parentSha: 'parent00',
     fixSha: 'fix11111',
@@ -89,6 +90,7 @@ export function fakeStaged(over: Partial<StagedPatch> = {}): StagedPatch {
     touchedPaths: ['src/checkout/price.ts', 'src/checkout/price.test.ts'],
     reproReproducedSignal: true,
     fixFlippedReproGreen: true,
+    checks: [],
     ...over,
   }
 }

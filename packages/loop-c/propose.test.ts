@@ -106,6 +106,30 @@ test('ungrounded repro (did not reproduce or flip green) → blocked_ungrounded_
   expect(publisher.published).toHaveLength(0)
 })
 
+test('a failed operator check (e.g. typecheck) → escalated_failed_check, NO gate run, NO PR', async () => {
+  let gateCalls = 0
+  const { d, approvals, publisher } = deps({
+    author: new FakeRepairAuthor(fakeStaged({ checks: [{ name: 'typecheck', passed: true }, { name: 'security', passed: false }] })),
+    runGate: async (s, c) => { gateCalls++; return (await passGate()(s, c)) },
+  })
+  const out = await runRepair(ctx(), d)
+  expect(out.status).toBe('escalated_failed_check')
+  expect(out.reason).toContain('security')
+  expect(gateCalls).toBe(0) // cheaper checks gate before the expensive mutation gate
+  expect(approvals.all()).toHaveLength(0)
+  expect(publisher.published).toHaveLength(0)
+})
+
+test('all operator checks pass → proceeds to the gate and proposes', async () => {
+  const { d, publisher } = deps({
+    author: new FakeRepairAuthor(fakeStaged({ checks: [{ name: 'typecheck', passed: true }, { name: 'lint', passed: true }] })),
+  })
+  const out = await runRepair(ctx(), d)
+  expect(out.status).toBe('proposed')
+  expect(publisher.published[0]!.body).toContain('typecheck ✅')
+  expect(publisher.published[0]!.title).toBe('fix(checkout): guard against a null cart in price()') // conventional PR title
+})
+
 test('gate REJECT → escalated_gate_reject with partial work, NO approval, NO PR', async () => {
   const { d, approvals, publisher } = deps({ runGate: failGate() })
   const out = await runRepair(ctx(), d)

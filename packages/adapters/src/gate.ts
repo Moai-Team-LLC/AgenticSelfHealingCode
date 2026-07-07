@@ -38,12 +38,16 @@ export interface VerifyGateOptions {
 
 /** Build a RunGate that drives the real verification gate over the staged refs. */
 export function makeVerifyGate(opts: VerifyGateOptions): RunGate {
+  const isTest = (p: string) => /\.(test|spec)\.[cm]?[jt]sx?$/.test(p)
   return async (staged: StagedPatch, ctx: RepairContext): Promise<GateResult> => {
+    // every touched test file that isn't the declared new test → checked for no-weakening (an edited existing test).
+    const weakenAlsoPaths = staged.touchedPaths.filter((p) => isTest(p) && !staged.testPaths.includes(p))
     const rich = verify({
       repo: staged.repo,
       parentRef: staged.parentSha,
       fixRef: staged.fixSha,
       testPaths: staged.testPaths,
+      weakenAlsoPaths,
       sourceFiles: staged.sourceFiles,
       testCmd: opts.testCmd,
       requiredMutationScore: ctx.autonomy.requiredMutationScore,

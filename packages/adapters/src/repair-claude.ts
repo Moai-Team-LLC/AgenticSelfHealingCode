@@ -34,7 +34,8 @@ function buildPrompt(ctx: RepairContext, files: RepoFile[], maxFileChars: number
     'You are a careful software-repair agent. Produce the SMALLEST safe code fix for the diagnosed bug,',
     'plus a regression test that FAILS on the current (buggy) code and PASSES once your fix is applied.',
     'Return ONLY a JSON object, no prose, matching exactly:',
-    '{"summary":string,"testPath":string,"testSource":string,"diff":string,"sourceFiles":[string,...],"touchedPaths":[string,...]}',
+    '{"summary":string,"commitType":"fix|refactor|perf|style","testPath":string,"testSource":string,"diff":string,"sourceFiles":[string,...],"touchedPaths":[string,...]}',
+    '- "commitType" is the Conventional Commits type; use "fix" for a bug repair (the usual case).',
     '- "diff" is a valid unified diff in standard git format (with a/ and b/ path prefixes); `git apply` must succeed.',
     '- "testSource" is the full contents of a new regression test at "testPath".',
     '- "sourceFiles" are the module files your diff changes; "touchedPaths" is every path you write (diff + test).',
@@ -86,7 +87,9 @@ function coerce(parsed: unknown): RepairProposal | null {
   // touchedPaths must at least include the test + the source files (so the protected-path check is honest).
   const union = new Set([...touchedPaths, ...sourceFiles, testPath])
   touchedPaths = [...union]
-  return { summary: summary || 'automated repair', diff, testPath, testSource, sourceFiles, touchedPaths }
+  const ct = o.commitType
+  const commitType = ct === 'refactor' || ct === 'perf' || ct === 'style' ? ct : 'fix'
+  return { summary: summary || 'automated repair', commitType, diff, testPath, testSource, sourceFiles, touchedPaths }
 }
 
 /** Build a RepairProposer backed by Claude. */

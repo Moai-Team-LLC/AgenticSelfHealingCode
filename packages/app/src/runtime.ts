@@ -11,9 +11,10 @@ import { fingerprint, moduleArea, symptomSignature, priority, type BusinessCriti
 import { investigate, fakeTools, FakeLlmClient, type RcaTools, type LlmProposal } from '@sho/loop-a'
 import type { IncidentRecord } from '@sho/incident-memory'
 import { runRepair, type RepairAuthor, type RunGate, type ChangeRequestPublisher, type ResolvedAutonomy, type RepairOutcome, type RepairContext, type LandingStore } from '@sho/loop-c'
+import { churnHold } from '@sho/trust-controller'
 import type { ApprovalQueue } from '@sho/hitl'
 import type { IncidentLog } from './oplog'
-import type { RepairIndex } from './repairindex'
+import type { RepairIndexStore } from './repairindex'
 
 /** The kill-switch controls the ops surface reads/toggles. In-memory KillSwitch or PgKillSwitch both fit. */
 export interface KillControl {
@@ -81,7 +82,7 @@ export interface RepairDeps {
   publisher: ChangeRequestPublisher
   approvals: ApprovalQueue
   store: LandingStore // InMemoryAutoActionStore (fakes) or PgAutoActionStore (durable) — both satisfy it
-  index: RepairIndex
+  index: RepairIndexStore // RepairIndex (fakes) or PgRepairIndex (durable — survives a crash before merge)
   /** resolve the autonomy tuple for a class (real: TrustController.effectiveLevel + crosswalk). */
   resolveAutonomy: (classKey: string, moduleArea: string, killed: boolean) => ResolvedAutonomy
   /** team + approvers for a module_area (real: ownership config). */
@@ -90,6 +91,9 @@ export interface RepairDeps {
   notify?: (o: RepairOutcome) => void | Promise<void>
   /** secret the GitHub PR-merge webhook (`x-hub-signature-256`) is verified against. */
   githubWebhookSecret?: string
+  /** the landing timestamps (ms) for a module_area → the churn escalator (§4.1). Absent → no churn hold.
+   *  Real: `(area) => (await store.listByArea(area)).map(a => Date.parse(a.applied_at))`. */
+  churnActions?: (moduleArea: string) => number[] | Promise<number[]>
 }
 
 export type SignalResult =
@@ -176,7 +180,10 @@ async function attemptRepair(
 ): Promise<void> {
   const area = moduleArea(c)
   const killed = deps.killSwitch ? await deps.killSwitch.isKilled(Date.now()) : false
-  const autonomy = repair.resolveAutonomy(classKey, area, killed)
+  // Churn escalator (§4.1): a thrashing area is held from further auto-proposals even at L1 → floor to L0.
+  const churnHeld = repair.churnActions ? churnHold(await repair.churnActions(area), Date.now()) : false
+  const resolved = repair.resolveAutonomy(classKey, area, killed)
+  const autonomy: ResolvedAutonomy = churnHeld ? { ...resolved, level: 'L0', tier: 1 } : resolved
   const route = repair.routing(area)
   const ctx: RepairContext = {
     incidentId: c.id, classKey, moduleArea: area,
@@ -188,7 +195,7 @@ async function attemptRepair(
     approvals: repair.approvals, nowMs: Date.now(), notify: repair.notify, telemetry: deps.telemetry,
   })
   if (outcome.status === 'proposed' && outcome.approvalId && outcome.changeRequest && outcome.staged && outcome.gate) {
-    repair.index.record({
+    await repair.index.record({
       approvalId: outcome.approvalId, incidentId: c.id, classKey, moduleArea: area,
       parentSha: outcome.staged.parentSha, fixSha: outcome.staged.fixSha,
       prNumber: outcome.changeRequest.number, prUrl: outcome.changeRequest.url,

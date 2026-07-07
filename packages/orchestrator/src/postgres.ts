@@ -44,6 +44,9 @@ export class PgAutoActionStore {
   async listByClass(classKey: string): Promise<AutoAction[]> {
     return (await this.query(`SELECT * FROM orch.auto_action WHERE class_key=$1 ORDER BY applied_at`, [classKey])).map(hydrate)
   }
+  async listByArea(moduleArea: string): Promise<AutoAction[]> {
+    return (await this.query(`SELECT * FROM orch.auto_action WHERE module_area=$1 ORDER BY applied_at`, [moduleArea])).map(hydrate)
+  }
   async get(actionId: string): Promise<AutoAction | undefined> {
     const rows = await this.query(`SELECT * FROM orch.auto_action WHERE action_id=$1`, [actionId])
     return rows[0] ? hydrate(rows[0]) : undefined

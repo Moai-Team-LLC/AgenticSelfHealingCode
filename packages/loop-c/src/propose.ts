@@ -68,6 +68,14 @@ export async function runRepair(ctx: RepairContext, deps: ProposeDeps): Promise<
     return { incidentId: iid, status: 'blocked_ungrounded_repro', reason: `ungrounded repro: reproduced=${staged.reproReproducedSignal}, flipped-green=${staged.fixFlippedReproGreen} — not a grounded fix (§4.1)`, staged }
   }
 
+  // 5b. OPERATOR GATE CHECKS — the local dev gates wired in as hooks (typecheck/lint/security/doc-sync/commit-lint).
+  //     A failing check escalates with partial work; a fix that doesn't typecheck or trips a security scan never
+  //     reaches a human as ready. Cheaper than the mutation gate, so it runs first.
+  const failedChecks = staged.checks.filter((c) => !c.passed)
+  if (failedChecks.length > 0) {
+    return { incidentId: iid, status: 'escalated_failed_check', reason: `gate checks failed: ${failedChecks.map((c) => c.name).join(', ')} — escalated with partial work`, staged }
+  }
+
   // 6. GATE — the non-LLM battery (VERIFICATION-GATE). Causally independent of the model that wrote the fix.
   const gate = await deps.runGate(staged, ctx)
   await deps.telemetry?.emit({
@@ -86,7 +94,7 @@ export async function runRepair(ctx: RepairContext, deps: ProposeDeps): Promise<
   const changeRequest = await deps.publisher.publish({
     incidentId: iid,
     classKey: ctx.classKey,
-    title: `[sho] fix: ${ctx.whyTrace.hypothesis}`.slice(0, 120),
+    title: staged.commitSubject, // Conventional Commits subject, e.g. "fix(checkout): guard null cart"
     body: prBody(ctx, staged, gate),
     headSha: staged.fixSha,
     baseSha: staged.parentSha,
@@ -140,6 +148,14 @@ function prBody(ctx: RepairContext, staged: StagedPatch, gate: GateResult): stri
     `- mutation score: ${s.mutationScore.score ?? 'n/a'} ≥ ${s.mutationScore.threshold} → ${s.mutationScore.pass ? 'pass' : 'fail'}`,
     `- no-weakening: ${s.noWeakening ? (s.noWeakening.pass ? 'pass' : 'fail') : 'n/a (new test)'}`,
     `- diff lines: ${s.diffLines}${s.exceedsClassBudget ? ' (exceeds class budget → churn signal)' : ''}`,
+    ...(staged.checks.length > 0
+      ? ['', `**Operator checks:** ${staged.checks.map((c) => `${c.name} ${c.passed ? '✅' : '❌'}`).join(' · ')}`]
+      : []),
+    '',
+    '**Reviewer checklist**',
+    '- [ ] Root cause is right, not just the symptom silenced',
+    '- [ ] Docs / CHANGELOG updated if this changes documented behavior',
+    '- [ ] No unintended blast radius beyond the cited module',
     '',
     '> **Merging this PR is the approval.** On merge, SHO records a `human_approved` landing (loop C). The',
     '> accountable owner is the trust-class owner (D9); the merging identity is descriptive audit only (§4.3).',

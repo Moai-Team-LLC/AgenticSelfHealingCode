@@ -96,13 +96,13 @@ export function createFetchHandler(deps: AppDeps): (req: Request) => Promise<Res
       }
       const merged = parseMergedPr(safeParse(rawBody))
       if (!merged) return json({ ok: true, ignored: 'not a merged PR' }) // pings/opens/closed-without-merge
-      const rec = repair.index.byPrNumber(merged.number)
+      const rec = await repair.index.byPrNumber(merged.number)
       if (!rec) return json({ ok: true, ignored: 'no tracked repair for this PR' })
       // STALE-GATE GUARD: the gate result attests to exactly rec.fixSha (the tip we authored + gated). If the
       // branch head moved after the gate passed (a human edit / force-push), the cached PASS no longer
       // describes the merged code — refuse to stamp a stale gate onto a different commit. Re-gate required.
       if (merged.headSha && merged.headSha !== rec.fixSha) {
-        repair.index.setStatus(rec.approvalId, 'needs_regate')
+        await repair.index.setStatus(rec.approvalId, 'needs_regate')
         return json({ ok: true, landed: false, ignored: 'merged head differs from the gated sha — re-gate required', regate: true })
       }
       // KILL-AT-CONFIRM: no landing while frozen — a fix proposed before a kill must not merge through it.
@@ -117,7 +117,7 @@ export function createFetchHandler(deps: AppDeps): (req: Request) => Promise<Res
           },
           { approvals: repair.approvals, store: repair.store, nowMs: now(), telemetry: deps.telemetry },
         )
-        repair.index.setStatus(rec.approvalId, 'confirmed')
+        await repair.index.setStatus(rec.approvalId, 'confirmed')
         return json({ ok: true, landed: res.created, actionId: res.action.action_id })
       } catch (e) {
         return json({ ok: true, error: (e as Error).message }) // 200 so GitHub does not retry-storm
@@ -165,7 +165,7 @@ async function handleRepairCallback(
   now: () => number,
   deps: AppDeps,
 ): Promise<string> {
-  const rec = repair.index.byApprovalId(approvalId)
+  const rec = await repair.index.byApprovalId(approvalId)
   if (!rec) return 'no matching proposal'
   try {
     if (action === 'approve') {
@@ -178,11 +178,11 @@ async function handleRepairCallback(
         },
         { approvals: repair.approvals, store: repair.store, nowMs: now(), telemetry: deps.telemetry },
       )
-      repair.index.setStatus(rec.approvalId, 'confirmed')
+      await repair.index.setStatus(rec.approvalId, 'confirmed')
       return res.created ? 'approved — landing recorded' : 'already landed'
     }
     rejectRepair(rec.approvalId, by, { approvals: repair.approvals, nowMs: now() })
-    repair.index.setStatus(rec.approvalId, 'rejected')
+    await repair.index.setStatus(rec.approvalId, 'rejected')
     return 'rejected'
   } catch (e) {
     return (e as Error).message

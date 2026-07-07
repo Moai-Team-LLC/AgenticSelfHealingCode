@@ -71,7 +71,7 @@ test('isOutcomeEvent uses the canonical actionId field', () => {
 })
 
 test('migrations are ordered and non-empty; windows have W_confirm deleted', () => {
-  expect(MIGRATIONS.map((m) => m.name)).toEqual(['0001_auto_action', '0002_incidents', '0003_resolutions', '0004_trust_class', '0005_why_traces', '0006_retrieve_fn', '0007_kill_switch'])
+  expect(MIGRATIONS.map((m) => m.name)).toEqual(['0001_auto_action', '0002_incidents', '0003_resolutions', '0004_trust_class', '0005_why_traces', '0006_retrieve_fn', '0007_kill_switch', '0008_repair_proposal'])
   expect(MIGRATIONS.every((m) => m.sql.length > 0)).toBe(true)
   expect(WINDOWS_DAYS.W_mature).toBe(30)
   expect('W_confirm' in WINDOWS_DAYS).toBe(false)

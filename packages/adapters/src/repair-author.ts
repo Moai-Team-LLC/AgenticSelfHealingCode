@@ -16,7 +16,7 @@
  * applies to production — that is the gate's + the human's job downstream (runRepair / confirmRepair).
  */
 
-import type { RepairAuthor, RepairContext, StagedPatch } from '@sho/loop-c'
+import type { RepairAuthor, RepairContext, StagedPatch, RepairCheckResult } from '@sho/loop-c'
 import { protectedPathsTouched, pathsFromUnifiedDiff } from '@sho/loop-c'
 
 /** The read-only files the sandbox hands the proposer (its "code_search / git_read" surface). */
@@ -28,6 +28,8 @@ export interface RepoFile {
 /** A candidate the proposer authored. Pure data — a unified diff + a regression test — until the sandbox runs it. */
 export interface RepairProposal {
   summary: string
+  /** Conventional Commits type for the fix. Defaults to 'fix' (a bug repair). */
+  commitType?: 'fix' | 'refactor' | 'perf' | 'style'
   /** unified diff against the base ref (the source fix). */
   diff: string
   /** the regression test that must fail on parent and pass on the fix. */
@@ -54,6 +56,8 @@ export interface SandboxSession {
   applyDiff(diff: string): boolean
   /** run the configured test command in the worktree; exitCode 0 = pass. Hard wall-clock timeout. */
   run(): { exitCode: number }
+  /** run the operator-configured extra gate checks (lint/typecheck/security/…) on the current worktree. */
+  runNamedChecks(): RepairCheckResult[]
   /** commit the worktree onto the fix branch in the MAIN repo; returns the fix sha (persists after close). */
   commit(message: string): string
   close(): void
@@ -105,13 +109,18 @@ export function sandboxedRepairAuthor(deps: SandboxedRepairAuthorDeps): RepairAu
         // §4.1 step 2 — apply the source fix. A malformed diff is a decline, never a crash.
         if (!s.applyDiff(proposal.diff)) return null
 
-        // §4.1 step 3 — commit and run on FIX: it must PASS (the fix flips the repro green).
-        const fixSha = s.commit(`sho: ${proposal.summary}`)
+        // §4.1 step 3 — commit (Conventional Commits) and run on FIX: it must PASS (fix flips the repro green).
+        const commitSubject = conventionalSubject(proposal.commitType ?? 'fix', scopeFrom(ctx.moduleArea), proposal.summary)
+        const fixSha = s.commit(commitMessage(commitSubject, proposal.summary, ctx.incidentId))
         const onFix = s.run()
         const fixFlippedReproGreen = onFix.exitCode === 0
 
+        // Operator gate checks (the local dev gates wired in as hooks): lint/typecheck/security/doc-sync/…
+        const checks = s.runNamedChecks()
+
         return {
           summary: proposal.summary,
+          commitSubject,
           repo: s.repo,
           parentSha: s.baseSha,
           fixSha,
@@ -120,10 +129,32 @@ export function sandboxedRepairAuthor(deps: SandboxedRepairAuthorDeps): RepairAu
           touchedPaths, // the real union (declared ∪ diff-derived) — so runRepair's re-check sees actual paths
           reproReproducedSignal,
           fixFlippedReproGreen,
+          checks,
         }
       } finally {
         s.close()
       }
     },
   }
+}
+
+/** kebab-case scope from a module_area, e.g. "src/checkout" -> "checkout". Empty -> no scope. */
+function scopeFrom(moduleArea: string): string {
+  const seg = moduleArea.split('/').filter(Boolean).pop() ?? ''
+  return seg.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+}
+
+/** Build a Conventional Commits subject (<=72 chars, lowercase description, no trailing period). */
+function conventionalSubject(type: string, scope: string, summary: string): string {
+  const head = scope ? `${type}(${scope}): ` : `${type}: `
+  let desc = summary.trim().replace(/\.$/, '')
+  desc = desc.charAt(0).toLowerCase() + desc.slice(1)
+  const budget = 72 - head.length
+  if (desc.length > budget) desc = desc.slice(0, Math.max(1, budget - 1)).trimEnd() + '…'
+  return head + desc
+}
+
+/** Full commit message: conventional subject + a body linking the incident + the bot as co-author. */
+function commitMessage(subject: string, summary: string, incidentId: string): string {
+  return `${subject}\n\n${summary}\n\nProposed automatically by SHO Loop C for incident ${incidentId}.\n\nCo-Authored-By: sho-repair <sho-repair@localhost>`
 }

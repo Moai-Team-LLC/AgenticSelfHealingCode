@@ -44,6 +44,7 @@ export interface RepairContext {
  */
 export interface StagedPatch {
   summary: string // human-readable what & why (PR body)
+  commitSubject: string // Conventional Commits first line, e.g. "fix(checkout): guard null cart"
   repo: string // sandbox repo path the gate drives
   parentSha: string
   fixSha: string
@@ -52,6 +53,14 @@ export interface StagedPatch {
   touchedPaths: string[] // ALL paths the diff writes (protected-path check, §5.3)
   reproReproducedSignal: boolean // §4.1 step 1: the signal reproduced against real repo state
   fixFlippedReproGreen: boolean // §4.1 step 3: the fix flipped the regression test green
+  /** results of the operator-configured extra gate checks (lint/typecheck/security/doc-sync/commit-lint). */
+  checks: RepairCheckResult[]
+}
+
+/** One extra gate check run in the sandbox — the operator's own local dev gates wired in as hooks. */
+export interface RepairCheckResult {
+  name: string
+  passed: boolean
 }
 
 /**
@@ -91,6 +100,7 @@ export type RepairStatus =
   | 'declined_by_author' // the worker declined (unreproducible / out of scope)
   | 'blocked_protected_path' // touched auth/billing/infra/migrations/CI — never autonomous (§5.3)
   | 'blocked_ungrounded_repro' // repro/flip booleans false — never grounded, never gated (§4.1)
+  | 'escalated_failed_check' // an operator gate check (lint/typecheck/security/doc-sync) failed — escalate
   | 'escalated_gate_reject' // gate REJECTED — escalate with partial work, never surfaced as ready
   | 'proposed' // gate PASSED — PR opened, L1 approval enqueued, human notified
 

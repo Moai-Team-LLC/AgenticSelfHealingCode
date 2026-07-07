@@ -40,8 +40,8 @@ const proposer = (over: Partial<RepairProposal>): RepairProposer => async () => 
   summary: 'fix add', testPath: 'sho.regression.js', testSource: TEST_SRC, diff: fixingDiff, sourceFiles: ['src/calc.js'], touchedPaths: ['src/calc.js', 'sho.regression.js'], ...over,
 })
 
-function author(over: Partial<RepairProposal> = {}) {
-  const sandbox = gitWorktreeSandbox({ repo, baseRef: 'HEAD', testCmd: ['node', 'sho.regression.js'], allowUntrustedExecution: true })
+function author(over: Partial<RepairProposal> = {}, checks?: { name: string; argv: string[] }[]) {
+  const sandbox = gitWorktreeSandbox({ repo, baseRef: 'HEAD', testCmd: ['node', 'sho.regression.js'], allowUntrustedExecution: true, checks })
   return sandboxedRepairAuthor({ propose: proposer(over), sandbox })
 }
 
@@ -56,6 +56,19 @@ test('grounded repro: reproduces on parent AND flips green on the real fix', asy
   // the fix branch persists in the main repo (gate + PR reach it after the worktree is gone)
   const branchSha = execFileSync('git', ['-C', repo, 'rev-parse', 'sho/fix-inc-77'], { encoding: 'utf8' }).trim()
   expect(branchSha).toBe(staged.fixSha)
+})
+
+test('the fix commit is Conventional Commits (fix(scope): …), not an ad-hoc message', async () => {
+  const staged = (await author().author(ctx))!
+  expect(staged.commitSubject).toMatch(/^fix\(src\): /) // ctx.moduleArea 'src' → scope 'src'
+  const msg = execFileSync('git', ['-C', repo, 'log', '-1', '--format=%s%n%b', staged.fixSha], { encoding: 'utf8' })
+  expect(msg.split('\n')[0]).toBe(staged.commitSubject)
+  expect(msg).toContain('Co-Authored-By: sho-repair')
+})
+
+test('operator gate checks run in the sandbox and their pass/fail is observed', async () => {
+  const staged = (await author({}, [{ name: 'always-pass', argv: ['true'] }, { name: 'always-fail', argv: ['false'] }]).author(ctx))!
+  expect(staged.checks).toEqual([{ name: 'always-pass', passed: true }, { name: 'always-fail', passed: false }])
 })
 
 test('a diff that applies but does NOT fix → flippedGreen is false (booleans are real, not always-true)', async () => {

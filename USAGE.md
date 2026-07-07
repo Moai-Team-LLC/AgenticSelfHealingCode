@@ -128,9 +128,26 @@ GITHUB_TOKEN=…                                   # fine-grained token, pull-re
 GITHUB_REPO=owner/name                           # the monitored repo the PR opens against
 ```
 
-It **never auto-applies**: fully-autonomous repair (L2/L3) stays deferred, earned per incident-class on
-measured outcomes (`TRUST-CONTROLLER.md`). Protected paths — auth, billing, infra, migrations, CI, secrets —
-are never touched at any level. The one piece you supply is the **repair worker** (`RepairAuthor`) that authors
+**Wire your own gates.** Beyond the built-in non-LLM battery (must-fail-on-parent + mutation + no-weakening),
+the sandbox runs an operator-configured check chain — the same gates you use locally — and a failing check
+escalates before the fix ever reaches a human:
+
+```ts
+gitWorktreeSandbox({
+  repo, baseRef, testCmd: ['bun', 'test'], allowUntrustedExecution: true,
+  checks: [
+    { name: 'typecheck', argv: ['bunx', 'tsc', '--noEmit'] },
+    { name: 'security',  argv: ['semgrep', '--error', '--config=auto'] },
+    { name: 'doc-sync',  argv: ['bun', 'run', 'scripts/check-docs.ts'] },
+  ],
+})
+```
+
+The worker's commit and the PR title are **Conventional Commits** (`fix(scope): …`); the PR carries a reviewer
+checklist (root cause, docs/CHANGELOG sync, blast radius). It **never auto-applies**: fully-autonomous repair
+(L2/L3) stays deferred, earned per incident-class on measured outcomes (`TRUST-CONTROLLER.md`). Protected paths
+— auth, billing, infra, migrations, CI, secrets, dependency manifests — are never touched at any level, and a
+thrashing module is held from further auto-proposals by the churn escalator. The one piece you supply is the **repair worker** (`RepairAuthor`) that authors
 the candidate diff inside the sandbox; `@sho/loop-c` ships everything around it (gate, PR channel, approval
 ladder, landing) plus in-memory fakes to run the whole loop offline. See
 [`LOOP-C-DEFERRED.md`](LOOP-C-DEFERRED.md) §5 and [`SECURITY-THREATMODEL.md`](SECURITY-THREATMODEL.md) §4.
