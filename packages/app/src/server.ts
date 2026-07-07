@@ -42,9 +42,12 @@ export function buildServerDeps(now: () => number): AppDeps {
   const secret = optionalEnv('SIGNAL_SECRET')
 
   // Real LLM only when a key is present (rotated key, in connectors/.env — never in code).
+  // ANTHROPIC_BASE_URL routes the call through an Anthropic-compatible model plane
+  // (e.g. AgenticGateway / a Bifrost Anthropic route) instead of api.anthropic.com.
   const apiKey = optionalEnv('ANTHROPIC_API_KEY')
+  const baseUrl = optionalEnv('ANTHROPIC_BASE_URL')
   const propose = apiKey
-    ? (input: Parameters<NonNullable<AppDeps['propose']>>[0]) => proposeWithClaude(input, { apiKey })
+    ? (input: Parameters<NonNullable<AppDeps['propose']>>[0]) => proposeWithClaude(input, { apiKey, baseUrl })
     : undefined
 
   // Real git-backed RCA grounding when RCA_GIT_REPO points at a checkout of the monitored service.
