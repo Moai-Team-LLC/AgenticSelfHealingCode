@@ -120,6 +120,7 @@ export async function runRepair(ctx: RepairContext, deps: ProposeDeps): Promise<
   const outcome: RepairOutcome = {
     incidentId: iid,
     status: 'proposed',
+    hypothesis: ctx.whyTrace.hypothesis,
     reason: `proposed as PR ${changeRequest.url} — awaiting human confirmation (L1, never auto-applied)`,
     approvalId,
     changeRequest,

@@ -108,6 +108,8 @@ export interface RepairOutcome {
   status: RepairStatus
   reason: string
   incidentId: string
+  /** the grounded root-cause hypothesis (for a human-readable notification: the error, not just the fix). */
+  hypothesis?: string
   approvalId?: string
   changeRequest?: PublishedChangeRequest
   gate?: GateResult

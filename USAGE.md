@@ -72,6 +72,13 @@ curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
 A tap records the human acknowledgement against the incident (visible in `GET /incidents/<id>`) and
 answers the callback.
 
+### Slack (second channel)
+
+Set `SLACK_BOT_TOKEN` (scope `chat:write`), `SLACK_CHANNEL`, and `SLACK_SIGNING_SECRET`. Repair proposals are
+posted with **Approve / Reject** buttons; point Slack's Interactivity request URL at `/slack/callback` (the
+endpoint verifies the `x-slack-signature`). Approve/reject routes through the same `confirmRepair` as Telegram
+and the PR merge — one landing, whichever channel the human uses.
+
 ## 4. Operate it
 
 ```bash
@@ -108,6 +115,11 @@ BODY="{\"token\":\"$KILL_RELEASE_TOKEN\"}"; curl -X POST localhost:3000/release 
 | `KILL_RELEASE_TOKEN` | The token required to `release` the kill switch. |
 | `GITHUB_WEBHOOK_SECRET` | Enables the `/webhook/github` PR-merge confirm channel (Loop C L1). |
 | `GITHUB_TOKEN` / `GITHUB_REPO` | Open the Loop C proposal PR (`pull-requests:write`) against `owner/name`. |
+| `SLACK_BOT_TOKEN` / `SLACK_CHANNEL` | Post proposals to Slack with Approve/Reject buttons. |
+| `SLACK_SIGNING_SECRET` | Verifies `/slack/callback` interactive clicks. |
+| `REPAIR_ALLOW_UNTRUSTED_EXECUTION` | **Arms the repair worker** — set `true` only inside the SECURITY §4 sandbox container. Absent → diagnosis-only. |
+| `REPAIR_GIT_REPO` / `REPAIR_TEST_CMD` / `REPAIR_BASE_REF` | The repo the sandbox runs against, its test command, its base ref. |
+| `REPAIR_OWNER` / `REPAIR_TEAM` / `REPAIR_APPROVER` | Accountable owner (D9) + approver routing for a landing. |
 | `PORT` | Listen port (default 3000). |
 
 ## 5. Turn on human-confirmed code repair (Loop C, L1)

@@ -58,7 +58,7 @@ function makeDeps(over: Partial<RepairDeps> = {}) {
   }
   const deps: AppDeps = {
     mem: new InMemoryIncidentMemory(), notify: new NotifyStore(), criticality: criticalityFromMap({ checkout: 5 }),
-    secret: SECRET, telemetry, oplog: new IncidentLog(), telegramWebhookSecret: 'tg-secret', killSwitch,
+    secret: SECRET, telemetry, oplog: new IncidentLog(), telegramWebhookSecret: 'tg-secret', slackSigningSecret: 'slack-secret', killSwitch,
     toolOverrides: { repro: demoRepro, trace: demoTrace, git: new FakeGitBlameLog([{ path: 'src/checkout/price.ts', hunk: '@@ -12,7 +12,7 @@' }]), llm: demoLlm },
     repair,
   }
@@ -164,6 +164,29 @@ test('channel 2 — Telegram approve confirms → the same human_approved landin
   expect(landings).toHaveLength(1)
   expect(landings[0]!.applied_by).toBe('human_approved')
   expect(index.byApprovalId(rec.approvalId)!.status).toBe('confirmed')
+})
+
+test('channel 2 (Slack) — a signed approve action → the same human_approved landing', async () => {
+  const { handler, store, index } = makeDeps()
+  await propose(handler)
+  const rec = index.list()[0]!
+  const body = 'payload=' + encodeURIComponent(JSON.stringify({ actions: [{ value: `approve:${rec.approvalId}` }], user: { username: 'oncall_jane' } }))
+  const ts = Math.floor(Date.now() / 1000).toString()
+  const sig = 'v0=' + createHmac('sha256', 'slack-secret').update(`v0:${ts}:${body}`, 'utf8').digest('hex')
+  const res = await handler(new Request('http://x/slack/callback', { method: 'POST', headers: { 'x-slack-request-timestamp': ts, 'x-slack-signature': sig }, body }))
+  expect(res.status).toBe(200)
+  expect(store.listByClass(rec.classKey)).toHaveLength(1)
+  expect(store.listByClass(rec.classKey)[0]!.applied_by).toBe('human_approved')
+})
+
+test('Slack callback with a bad signature → 401, no landing', async () => {
+  const { handler, store, index } = makeDeps()
+  await propose(handler)
+  const rec = index.list()[0]!
+  const body = 'payload=' + encodeURIComponent(JSON.stringify({ actions: [{ value: `approve:${rec.approvalId}` }], user: {} }))
+  const res = await handler(new Request('http://x/slack/callback', { method: 'POST', headers: { 'x-slack-request-timestamp': '1', 'x-slack-signature': 'v0=bad' }, body }))
+  expect(res.status).toBe(401)
+  expect(store.listByClass(rec.classKey)).toHaveLength(0)
 })
 
 test('channel 2 — Telegram reject → REJECTED, no landing', async () => {

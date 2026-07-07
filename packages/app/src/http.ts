@@ -10,7 +10,7 @@ import type { SignalSource } from '@sho/contracts'
 import { verifyHmac } from '@sho/signal-layer'
 import { ingestSentry } from '@sho/ingest-sentry'
 import { confirmRepair, rejectRepair } from '@sho/loop-c'
-import { verifyGithubSignature, parseMergedPr } from '@sho/adapters'
+import { verifyGithubSignature, parseMergedPr, verifySlackSignature, parseSlackAction } from '@sho/adapters'
 import { handleSignal, diagnose, type AppDeps } from './runtime'
 import type { RepairDeps } from './runtime'
 
@@ -146,6 +146,20 @@ export function createFetchHandler(deps: AppDeps): (req: Request) => Promise<Res
       }
       if (cq.id) await deps.answerCallback?.(cq.id, resultText)
       return json({ ok: true })
+    }
+
+    // ── Slack callback (approve / reject a repair) — channel 2, Slack flavour ──
+    if (req.method === 'POST' && path === '/slack/callback') {
+      const rawBody = await req.text()
+      if (!deps.slackSigningSecret || !verifySlackSignature(rawBody, req.headers.get('x-slack-request-timestamp'), req.headers.get('x-slack-signature'), deps.slackSigningSecret, now())) {
+        return json({ error: 'unauthorized' }, 401)
+      }
+      const act = parseSlackAction(rawBody)
+      if (!act || !deps.repair) return json({ ok: true }) // not an action we handle
+      const [action, ref = ''] = act.value.split(':')
+      if (action !== 'approve' && action !== 'reject') return json({ ok: true })
+      const text = await handleRepairCallback(deps.repair, action, ref, `slack:${act.user}`, now, deps)
+      return json({ text }) // Slack renders this back to the clicker
     }
 
     return new Response('not found', { status: 404 })

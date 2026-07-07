@@ -63,6 +63,18 @@ All three audit follow-ups are now **closed**:
 - **Churn escalator implemented** (`churnHold`, `TRUST-CONTROLLER.md` §4.1): once `CHURN_MAX=3` actions land in
   a `module_area` within a 6h burst, the area is held from further auto-proposals for 12h.
 
+### Added (the loop, end-to-end)
+
+- **The full L1 loop now runs as a deployed service.** `buildServerDeps` wires the repair worker (Claude
+  proposer + git-worktree sandbox + gate + GitHub PR publisher + durable index + churn) when the operator opts
+  in with `REPAIR_ALLOW_UNTRUSTED_EXECUTION=true` (asserting the SECURITY §4 container) plus keys/repo. Absent →
+  diagnosis-only, the safe default. Signal → diagnose → fix PR → notify → confirm → landing, from one process.
+- **Slack channel** (`@sho/adapters` `SlackNotifier` / `verifySlackSignature` / `parseSlackAction`) — proposals
+  post to Slack with **Approve / Reject** buttons; `/slack/callback` verifies the signature and routes through
+  the same `confirmRepair` as Telegram and PR-merge. Offline-testable via injected fetch, no token held.
+- **Human-readable proposal notice** — the notification renders the *cause* (grounded hypothesis) and the *fix*
+  (summary) plus the gate verdict and PR link, sent to Telegram and Slack with the approve/reject buttons.
+
 ### Added (repair worker hardening)
 
 - **Conventional Commits.** The repair worker's commit and the PR title are now `type(scope): description`

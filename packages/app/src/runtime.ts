@@ -64,6 +64,8 @@ export interface AppDeps {
   sentryClientSecret?: string
   /** secret_token configured on the Telegram webhook; the callback endpoint checks it (fail-closed if set). */
   telegramWebhookSecret?: string
+  /** Slack signing secret; the /slack/callback endpoint verifies `x-slack-signature` with it (fail-closed). */
+  slackSigningSecret?: string
   /** answer a Telegram callback_query (clears the button spinner). Real: TelegramNotifier. */
   answerCallback?: (callbackQueryId: string, text: string) => void | Promise<void>
   /** Loop C — human-confirmed code repair. When set, a CONFIRMED *code* diagnosis triggers a propose
