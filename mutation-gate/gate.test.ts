@@ -1,10 +1,30 @@
 import { test, expect } from 'bun:test'
-import { mutate, maskLine, scoreGate, type MutantResult } from './gate'
+import { mutate, maskLine, maskBlockComments, scoreGate, type MutantResult } from './gate'
 
 test('maskLine blanks strings and comments, keeps real operators', () => {
   expect(maskLine('const x = a > b // > not this')).toContain('a > b')
   expect(maskLine('const s = "a > b"').includes('>')).toBe(false)
   expect(maskLine('x + y // + z').trimEnd()).toBe('x + y')
+})
+
+test('maskBlockComments blanks /* */ operators, preserves length + line count', () => {
+  const src = 'const a = 1 + 2 /* not a > b && c */\nreturn a > 0\n'
+  const masked = maskBlockComments(src)
+  expect(masked.split('\n').length).toBe(src.split('\n').length) // line count intact
+  expect(masked.length).toBe(src.length) // length intact → mutant line/col stay valid
+  expect(masked).toContain('1 + 2') // real code survives
+  expect(masked).toContain('a > 0')
+  const firstLine = masked.split('\n')[0]
+  expect(firstLine.slice(15).includes('>')).toBe(false) // operators inside the comment gone
+  expect(firstLine.slice(15).includes('&&')).toBe(false)
+})
+
+test('mutate ignores operators inside a JSDoc block comment (no inert survivors)', () => {
+  const src = '/**\n * Compares: a > b, x + y, p && q — not code.\n */\nexport const f = (a: number) => a > 0\n'
+  const mutants = mutate(src)
+  // Only the real `>` on the last line is mutable (>→>= and >→<) = 2 mutants.
+  expect(mutants.length).toBe(2)
+  expect(mutants.every((m) => m.line === 4)).toBe(true)
 })
 
 test('mutate produces one mutant per operator occurrence, skipping strings', () => {
