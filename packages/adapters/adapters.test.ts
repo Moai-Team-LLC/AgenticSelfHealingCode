@@ -44,6 +44,20 @@ test('proposeWithClaude parses a well-formed JSON proposal', async () => {
   expect(p.alternatives).toEqual(['upstream dep'])
 })
 
+test('proposeWithClaude defaults to api.anthropic.com and honors a baseUrl override (model plane)', async () => {
+  const body = { content: [{ type: 'text', text: '{}' }] }
+  const direct = recorder(body)
+  await proposeWithClaude({ candidate, evidenceSummary: 'x' }, { apiKey: 'k', fetchFn: direct.fetchFn })
+  expect(direct.calls[0]!.url).toBe('https://api.anthropic.com/v1/messages')
+  const routed = recorder(body)
+  await proposeWithClaude(
+    { candidate, evidenceSummary: 'x' },
+    { apiKey: 'k', fetchFn: routed.fetchFn, baseUrl: 'http://localhost:8787/anthropic/' },
+  )
+  // trailing slash normalized; path appended once
+  expect(routed.calls[0]!.url).toBe('http://localhost:8787/anthropic/v1/messages')
+})
+
 test('proposeWithClaude falls back safely on unparseable model output (no throw)', async () => {
   const { fetchFn } = recorder({ content: [{ type: 'text', text: 'I could not determine a cause.' }] })
   const p = await proposeWithClaude({ candidate, evidenceSummary: 'x' }, { apiKey: 'k', fetchFn })
