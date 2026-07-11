@@ -133,6 +133,27 @@ CREATE TABLE IF NOT EXISTS orch.kill_switch (
 );
 INSERT INTO orch.kill_switch (id) VALUES (true) ON CONFLICT (id) DO NOTHING;`.trim()
 
+// Loop C proposal index (durable read-model): lets BOTH confirm channels reconstruct the confirmRepair inputs
+// after a restart. incident_id is TEXT (a lenient cache key), not the UUID FK — this table is convenience, not
+// the canonical incident record. Keyed by approval_id; pr_number indexed for the GitHub merge webhook lookup.
+export const DDL_REPAIR_PROPOSAL = `
+CREATE SCHEMA IF NOT EXISTS orch;
+CREATE TABLE IF NOT EXISTS orch.repair_proposal (
+  approval_id       text PRIMARY KEY,
+  incident_id       text NOT NULL,
+  class_key         text NOT NULL,
+  module_area       text NOT NULL,
+  parent_sha        text NOT NULL,
+  fix_sha           text NOT NULL,
+  pr_number         integer NOT NULL,
+  pr_url            text NOT NULL,
+  accountable_owner text NOT NULL,
+  gate_result       jsonb NOT NULL,
+  status            text NOT NULL DEFAULT 'proposed',
+  created_at        timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS repair_proposal_pr ON orch.repair_proposal (pr_number);`.trim()
+
 /** All migrations, in dependency order. */
 export const MIGRATIONS: { name: string; sql: string }[] = [
   { name: '0001_auto_action', sql: DDL_AUTO_ACTION },
@@ -142,4 +163,5 @@ export const MIGRATIONS: { name: string; sql: string }[] = [
   { name: '0005_why_traces', sql: DDL_WHY_TRACES },
   { name: '0006_retrieve_fn', sql: DDL_RETRIEVE_FN },
   { name: '0007_kill_switch', sql: DDL_KILL_SWITCH },
+  { name: '0008_repair_proposal', sql: DDL_REPAIR_PROPOSAL },
 ]

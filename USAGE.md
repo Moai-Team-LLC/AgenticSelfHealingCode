@@ -72,6 +72,13 @@ curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
 A tap records the human acknowledgement against the incident (visible in `GET /incidents/<id>`) and
 answers the callback.
 
+### Slack (second channel)
+
+Set `SLACK_BOT_TOKEN` (scope `chat:write`), `SLACK_CHANNEL`, and `SLACK_SIGNING_SECRET`. Repair proposals are
+posted with **Approve / Reject** buttons; point Slack's Interactivity request URL at `/slack/callback` (the
+endpoint verifies the `x-slack-signature`). Approve/reject routes through the same `confirmRepair` as Telegram
+and the PR merge — one landing, whichever channel the human uses.
+
 ## 4. Operate it
 
 ```bash
@@ -107,13 +114,63 @@ BODY="{\"token\":\"$KILL_RELEASE_TOKEN\"}"; curl -X POST localhost:3000/release 
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | Deliver why-traces to on-call. |
 | `TELEGRAM_WEBHOOK_SECRET` | Auth for the `/telegram/callback` endpoint. |
 | `KILL_RELEASE_TOKEN` | The token required to `release` the kill switch. |
+| `GITHUB_WEBHOOK_SECRET` | Enables the `/webhook/github` PR-merge confirm channel (Loop C L1). |
+| `GITHUB_TOKEN` / `GITHUB_REPO` | Open the Loop C proposal PR (`pull-requests:write`) against `owner/name`. |
+| `SLACK_BOT_TOKEN` / `SLACK_CHANNEL` | Post proposals to Slack with Approve/Reject buttons. |
+| `SLACK_SIGNING_SECRET` | Verifies `/slack/callback` interactive clicks. |
+| `REPAIR_ALLOW_UNTRUSTED_EXECUTION` | **Arms the repair worker** — set `true` only inside the SECURITY §4 sandbox container. Absent → diagnosis-only. |
+| `REPAIR_GIT_REPO` / `REPAIR_TEST_CMD` / `REPAIR_BASE_REF` | The repo the sandbox runs against, its test command, its base ref. |
+| `REPAIR_OWNER` / `REPAIR_TEAM` / `REPAIR_APPROVER` | Accountable owner (D9) + approver routing for a landing. |
 | `PORT` | Listen port (default 3000). |
+
+## 5. Turn on human-confirmed code repair (Loop C, L1)
+
+Optional. When configured, a grounded **CONFIRMED** *code* diagnosis becomes a **proposed pull request** for
+a human to merge — never an auto-apply. The proposal is only surfaced *after* it clears the non-LLM gate
+(must-fail-on-parent + mutation + no-weakening), so a human reviews a diff that already reproduced the bug and
+flipped it green. A human confirms in **either** channel:
+
+- **GitHub PR merge** — merging the PR is the approval. Point a `pull_request` webhook at `/webhook/github`
+  (`x-hub-signature-256` verified against `GITHUB_WEBHOOK_SECRET`); on merge SHO records a `human_approved`
+  landing (loop C).
+- **Telegram** — the proposal notice carries `approve` / `reject` buttons; a tap routes to the same landing.
+
+```bash
+GITHUB_WEBHOOK_SECRET=$(openssl rand -hex 16)   # secret set on the GitHub webhook
+GITHUB_TOKEN=…                                   # fine-grained token, pull-requests:write (never committed)
+GITHUB_REPO=owner/name                           # the monitored repo the PR opens against
+```
+
+**Wire your own gates.** Beyond the built-in non-LLM battery (must-fail-on-parent + mutation + no-weakening),
+the sandbox runs an operator-configured check chain — the same gates you use locally — and a failing check
+escalates before the fix ever reaches a human:
+
+```ts
+gitWorktreeSandbox({
+  repo, baseRef, testCmd: ['bun', 'test'], allowUntrustedExecution: true,
+  checks: [
+    { name: 'typecheck', argv: ['bunx', 'tsc', '--noEmit'] },
+    { name: 'security',  argv: ['semgrep', '--error', '--config=auto'] },
+    { name: 'doc-sync',  argv: ['bun', 'run', 'scripts/check-docs.ts'] },
+  ],
+})
+```
+
+The worker's commit and the PR title are **Conventional Commits** (`fix(scope): …`); the PR carries a reviewer
+checklist (root cause, docs/CHANGELOG sync, blast radius). It **never auto-applies**: fully-autonomous repair
+(L2/L3) stays deferred, earned per incident-class on measured outcomes (`TRUST-CONTROLLER.md`). Protected paths
+— auth, billing, infra, migrations, CI, secrets, dependency manifests — are never touched at any level, and a
+thrashing module is held from further auto-proposals by the churn escalator. The one piece you supply is the **repair worker** (`RepairAuthor`) that authors
+the candidate diff inside the sandbox; `@sho/loop-c` ships everything around it (gate, PR channel, approval
+ladder, landing) plus in-memory fakes to run the whole loop offline. See
+[`LOOP-C-DEFERRED.md`](LOOP-C-DEFERRED.md) §5 and [`SECURITY-THREATMODEL.md`](SECURITY-THREATMODEL.md) §4.
 
 ## What this is (and isn't) yet
 
-Today's product: **grounded incident diagnosis → delivery → human ack**, plus test-suite self-healing
-(`loop-b`) and the verification gates (`gate/`) as CI-side tools, and the D10 instrument for deciding
-where to invest. Autonomous production-code repair (Loop C) is deferred by design — earned per
-incident-class on measured outcomes, never on first contact. See
+Today's product: **grounded incident diagnosis → delivery → human ack**, plus **human-confirmed code repair**
+(`@sho/loop-c`, L1 — propose → gate → PR/Telegram confirm → `human_approved` landing), test-suite
+self-healing (`loop-b`), the verification gates (`gate/`) as CI-side tools, and the D10 instrument for
+deciding where to invest. **Autonomous** production-code repair (Loop C L2/L3, no human in the loop) is
+deferred by design — earned per incident-class on measured outcomes, never on first contact. See
 [`ARCHITECTURE-REFRAMED.md`](ARCHITECTURE-REFRAMED.md) and [`CONFORMANCE.md`](CONFORMANCE.md) for the
 full picture and the honest gaps.

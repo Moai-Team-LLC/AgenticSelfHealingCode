@@ -272,8 +272,8 @@ test('runMigrations executes every contract migration in order via the injected 
     return []
   }
   const applied = await runMigrations(exec)
-  expect(applied.map((a) => a.name)).toEqual(['0001_auto_action', '0002_incidents', '0003_resolutions', '0004_trust_class', '0005_why_traces', '0006_retrieve_fn', '0007_kill_switch'])
-  expect(seen).toHaveLength(7)
+  expect(applied.map((a) => a.name)).toEqual(['0001_auto_action', '0002_incidents', '0003_resolutions', '0004_trust_class', '0005_why_traces', '0006_retrieve_fn', '0007_kill_switch', '0008_repair_proposal'])
+  expect(seen).toHaveLength(8)
   expect(seen[0]).toContain('orch.auto_action') // ran the real contract DDL, not a placeholder
 })
 

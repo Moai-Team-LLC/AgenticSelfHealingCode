@@ -9,7 +9,10 @@
 import type { SignalSource } from '@sho/contracts'
 import { verifyHmac } from '@sho/signal-layer'
 import { ingestSentry } from '@sho/ingest-sentry'
+import { confirmRepair, rejectRepair } from '@sho/loop-c'
+import { verifyGithubSignature, parseMergedPr, verifySlackSignature, parseSlackAction } from '@sho/adapters'
 import { handleSignal, diagnose, type AppDeps } from './runtime'
+import type { RepairDeps } from './runtime'
 
 const SOURCE_RE = /^\/webhook\/(sentry|otel|rum|business-metric)$/
 const json = (body: unknown, status = 200) => Response.json(body, { status })
@@ -83,7 +86,45 @@ export function createFetchHandler(deps: AppDeps): (req: Request) => Promise<Res
       return json({ ok: !killed, killed })
     }
 
-    // ── Telegram callback (approve / reject / ack from an inline button) ──
+    // ── GitHub PR-merge webhook → confirm a Loop C repair (channel 1) ──
+    if (req.method === 'POST' && path === '/webhook/github') {
+      const repair = deps.repair
+      if (!repair?.githubWebhookSecret) return json({ error: 'repair webhook not configured' }, 503)
+      const rawBody = await req.text()
+      if (!verifyGithubSignature(rawBody, req.headers.get('x-hub-signature-256'), repair.githubWebhookSecret)) {
+        return json({ error: 'bad_signature' }, 401)
+      }
+      const merged = parseMergedPr(safeParse(rawBody))
+      if (!merged) return json({ ok: true, ignored: 'not a merged PR' }) // pings/opens/closed-without-merge
+      const rec = await repair.index.byPrNumber(merged.number)
+      if (!rec) return json({ ok: true, ignored: 'no tracked repair for this PR' })
+      // STALE-GATE GUARD: the gate result attests to exactly rec.fixSha (the tip we authored + gated). If the
+      // branch head moved after the gate passed (a human edit / force-push), the cached PASS no longer
+      // describes the merged code — refuse to stamp a stale gate onto a different commit. Re-gate required.
+      if (merged.headSha && merged.headSha !== rec.fixSha) {
+        await repair.index.setStatus(rec.approvalId, 'needs_regate')
+        return json({ ok: true, landed: false, ignored: 'merged head differs from the gated sha — re-gate required', regate: true })
+      }
+      // KILL-AT-CONFIRM: no landing while frozen — a fix proposed before a kill must not merge through it.
+      if (deps.killSwitch && (await deps.killSwitch.isKilled(now()))) return json({ ok: true, landed: false, ignored: 'system frozen (kill switch)' })
+      try {
+        const res = await confirmRepair(
+          {
+            // NO mergedFixSha → land rec.fixSha, the exact commit the gate ran on (never the ungated merge commit).
+            approvalId: rec.approvalId, verdictBy: `github:${merged.mergedBy}`, parentSha: rec.parentSha,
+            moduleArea: rec.moduleArea, classKey: rec.classKey, accountableOwner: rec.accountableOwner,
+            gateResult: rec.gateResult,
+          },
+          { approvals: repair.approvals, store: repair.store, nowMs: now(), telemetry: deps.telemetry },
+        )
+        await repair.index.setStatus(rec.approvalId, 'confirmed')
+        return json({ ok: true, landed: res.created, actionId: res.action.action_id })
+      } catch (e) {
+        return json({ ok: true, error: (e as Error).message }) // 200 so GitHub does not retry-storm
+      }
+    }
+
+    // ── Telegram callback (approve / reject a repair · ack an alert) — channel 2 ──
     if (req.method === 'POST' && path === '/telegram/callback') {
       if (deps.telegramWebhookSecret && req.headers.get('x-telegram-bot-api-secret-token') !== deps.telegramWebhookSecret) {
         return json({ error: 'unauthorized' }, 401)
@@ -91,12 +132,34 @@ export function createFetchHandler(deps: AppDeps): (req: Request) => Promise<Res
       const update = safeParse(await req.text()) as TelegramUpdate | null
       const cq = update?.callback_query
       if (!cq?.data) return json({ ok: true }) // not a callback we handle — always 200 for Telegram
-      const [action, incidentId = ''] = cq.data.split(':')
+      const [action, ref = ''] = cq.data.split(':')
       const by = cq.from?.username ?? cq.from?.id?.toString() ?? 'unknown'
-      const acked = incidentId ? (deps.oplog?.markAck(incidentId, by, new Date().toISOString()) ?? false) : false
-      deps.telemetry?.emit({ kind: 'rca_outcome', at: new Date().toISOString(), incidentId, data: { humanAction: action, by, acked } })
-      if (cq.id) await deps.answerCallback?.(cq.id, acked ? `${action} recorded` : 'received')
+      let resultText = 'received'
+
+      if ((action === 'approve' || action === 'reject') && deps.repair) {
+        resultText = await handleRepairCallback(deps.repair, action, ref, by, now, deps)
+      } else {
+        // ack:<incidentId> — the enriched-alert acknowledgement path
+        const acked = ref ? (deps.oplog?.markAck(ref, by, new Date().toISOString()) ?? false) : false
+        deps.telemetry?.emit({ kind: 'rca_outcome', at: new Date().toISOString(), incidentId: ref, data: { humanAction: action, by, acked } })
+        resultText = acked ? `${action} recorded` : 'received'
+      }
+      if (cq.id) await deps.answerCallback?.(cq.id, resultText)
       return json({ ok: true })
+    }
+
+    // ── Slack callback (approve / reject a repair) — channel 2, Slack flavour ──
+    if (req.method === 'POST' && path === '/slack/callback') {
+      const rawBody = await req.text()
+      if (!deps.slackSigningSecret || !verifySlackSignature(rawBody, req.headers.get('x-slack-request-timestamp'), req.headers.get('x-slack-signature'), deps.slackSigningSecret, now())) {
+        return json({ error: 'unauthorized' }, 401)
+      }
+      const act = parseSlackAction(rawBody)
+      if (!act || !deps.repair) return json({ ok: true }) // not an action we handle
+      const [action, ref = ''] = act.value.split(':')
+      if (action !== 'approve' && action !== 'reject') return json({ ok: true })
+      const text = await handleRepairCallback(deps.repair, action, ref, `slack:${act.user}`, now, deps)
+      return json({ text }) // Slack renders this back to the clicker
     }
 
     return new Response('not found', { status: 404 })
@@ -105,6 +168,39 @@ export function createFetchHandler(deps: AppDeps): (req: Request) => Promise<Res
 
 function safeParse(s: string): unknown {
   try { return JSON.parse(s) } catch { return null }
+}
+
+/** Telegram approve/reject → confirmRepair/rejectRepair. Returns the button-answer text; never throws. */
+async function handleRepairCallback(
+  repair: RepairDeps,
+  action: 'approve' | 'reject',
+  approvalId: string,
+  by: string,
+  now: () => number,
+  deps: AppDeps,
+): Promise<string> {
+  const rec = await repair.index.byApprovalId(approvalId)
+  if (!rec) return 'no matching proposal'
+  try {
+    if (action === 'approve') {
+      // no landing while frozen (kill switch) — a human approving must not merge through a freeze.
+      if (deps.killSwitch && (await deps.killSwitch.isKilled(now()))) return 'system frozen (kill switch engaged)'
+      const res = await confirmRepair(
+        {
+          approvalId: rec.approvalId, verdictBy: by, parentSha: rec.parentSha, moduleArea: rec.moduleArea,
+          classKey: rec.classKey, accountableOwner: rec.accountableOwner, gateResult: rec.gateResult,
+        },
+        { approvals: repair.approvals, store: repair.store, nowMs: now(), telemetry: deps.telemetry },
+      )
+      await repair.index.setStatus(rec.approvalId, 'confirmed')
+      return res.created ? 'approved — landing recorded' : 'already landed'
+    }
+    rejectRepair(rec.approvalId, by, { approvals: repair.approvals, nowMs: now() })
+    await repair.index.setStatus(rec.approvalId, 'rejected')
+    return 'rejected'
+  } catch (e) {
+    return (e as Error).message
+  }
 }
 
 interface TelegramUpdate {

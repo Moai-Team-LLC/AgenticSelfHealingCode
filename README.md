@@ -1,18 +1,16 @@
 # AgenticSelfHealingCode
 
 **Self-healing ops for agentic products** — a network of agents for production monitoring,
-incident diagnosis, auto-repair, and test-suite healing, **designed adversarially, then reduced
-to the parts that are actually safe to build first.**
+incident diagnosis, human-confirmed code repair, and test-suite healing, **designed adversarially,
+then reduced to the parts that are actually safe to build first.**
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![CI](https://github.com/Moai-Team-LLC/AgenticSelfHealingCode/actions/workflows/ci.yml/badge.svg)](https://github.com/Moai-Team-LLC/AgenticSelfHealingCode/actions/workflows/ci.yml)
-[![Implements: Agentic Product Standard](https://img.shields.io/badge/implements-Agentic%20Product%20Standard-CD7722.svg)](https://github.com/Moai-Team-LLC/agentic-product-standard)
 [![Runtime: Bun](https://img.shields.io/badge/runtime-Bun-black.svg)](https://bun.sh)
 [![DB: Postgres + pgvector](https://img.shields.io/badge/db-Postgres%20%2B%20pgvector-336791.svg)](https://github.com/pgvector/pgvector)
 
-Runs **standalone** on Postgres + pgvector — and plugs into the AgenticProduct ecosystem when its
-siblings are present (optional adapters, never hard dependencies — see
-[`INTEGRATIONS.md`](INTEGRATIONS.md) and [`CONFORMANCE.md`](CONFORMANCE.md)).
+Runs **standalone** on Postgres + pgvector, with optional integrations (never hard dependencies) in
+[`INTEGRATIONS.md`](INTEGRATIONS.md).
 
 ## 🚀 Quick start (60 seconds)
 
@@ -60,31 +58,16 @@ This repo is two things: a **reconciled design** (the root markdown docs, advers
 start with `ARCHITECTURE-REFRAMED.md`) and a **working product** — the `@sho/*` packages that compose
 into a runnable service, verified against real Postgres + pgvector.
 
-## 🌐 The AgenticProduct ecosystem
-
-One standard and six reference implementations you can run — together they close the loop every production agent needs: **run → remember → measure → heal**, with security as a cross-cutting assurance plane.
-
-|  | Project | Role |
-|---|---|---|
-| 📐 | [agentic-product-standard](https://github.com/Moai-Team-LLC/agentic-product-standard) | The contract — principles, the autonomy ladder, the harness layers, and eval discipline (plus a Claude Code skill set). |
-| ⚙️ | [AgenticOps](https://github.com/Moai-Team-LLC/AgenticOps) | Runtime & operations — deployable manifests, scheduling, a durable backlog, a bounded runner, and fleet health. |
-| 🧠 | [AgenticMind](https://github.com/Moai-Team-LLC/AgenticMind) | Knowledge & memory — auditable, self-improving, citation-enforced, over MCP; Postgres-only. |
-| 📈 | [AgenticPerformance](https://github.com/Moai-Team-LLC/AgenticPerformance) | Evals & observability — OTel traces, golden-set evals with a CI gate, failure clusters, and the improvement loop. |
-| 🩹 | **AgenticSelfHealingCode** (this repo) | Self-healing ops — production monitoring, incident diagnosis/RCA, and test-suite healing on earned autonomy. |
-| 🌉 | [AgenticGateway](https://github.com/Moai-Team-LLC/AgenticGateway) | Model & cost plane — one key, measured routing, ceilings, cache, evidence. |
-| 🛡️ | [AgenticAssurance](https://github.com/Moai-Team-LLC/AgenticAssurance) | Security & assurance — red-teams any agent (OWASP Agentic + MITRE ATLAS), a toxic-flow graph, and SARIF output. |
-
-**How they compose.** **AgenticOps** runs the fleet, **AgenticMind** gives agents auditable knowledge & memory, **AgenticPerformance** measures every run with traces and evals, and **AgenticSelfHealingCode** repairs what breaks — closing the **run → remember → measure → heal** loop. **AgenticGateway** is the model plane every LLM call in that loop passes through — one key, eval-measured routing, cost ceilings — and **AgenticAssurance** red-teams any agent in the loop, with the whole stack conforming to the **[agentic-product-standard](https://github.com/Moai-Team-LLC/agentic-product-standard)**.
-
-How this repo composes with each sibling — including the ports/adapters already built — is specified in [`INTEGRATIONS.md`](INTEGRATIONS.md); conformance to the standard is mapped in [`CONFORMANCE.md`](CONFORMANCE.md).
-
 ## The one-line reframe
 
 The original target was autonomous production-code repair. An adversarial stress test
 ([`STRESS-TEST.md`](STRESS-TEST.md)) showed that's the smallest, riskiest slice, so the center of
-gravity moved to **diagnosis (Loop A) + test-suite self-healing (Loop B)**, with autonomous repair
-(Loop C) **deferred and earned per-incident-class on outcome data**. Confidence is grounded booleans,
-not LLM self-report; trust expands on outcomes, not the absence of vetoes. Full rationale in
+gravity moved to **diagnosis (Loop A) + test-suite self-healing (Loop B)**. Code repair itself ships
+as **human-confirmed** (Loop C **L1**, `@sho/loop-c`): the agent proposes a fix that must clear the
+non-LLM gate *before a human sees it*, and a human confirms by merging the PR or tapping Telegram — it
+**never auto-applies**. Only **autonomous** repair (Loop C **L2/L3**, no human in the loop) stays
+**deferred and earned per-incident-class on outcome data**. Confidence is grounded booleans, not LLM
+self-report; trust expands on outcomes, not the absence of vetoes. Full rationale in
 [`ARCHITECTURE-REFRAMED.md`](ARCHITECTURE-REFRAMED.md) (the source of truth) and
 [`DECISIONS.md`](DECISIONS.md) (D1–D10).
 
@@ -113,10 +96,11 @@ with in-memory fakes**, so the whole thing is testable now and real adapters dro
 | [`@sho/orchestrator`](packages/orchestrator/) | Durable state machine, router, apply-time writer (idempotent, both landing variants), single kill bit. | 7 |
 | [`@sho/loop-a`](packages/loop-a/) | RCA copilot: grounded-boolean confidence, deploy-anchoring branch, why-trace. **Zero write access.** | 25 |
 | [`@sho/loop-b`](packages/loop-b/) | Test-suite self-healing: the A/B/C/D discriminator + flaky quarantine. | 16 |
+| [`@sho/loop-c`](packages/loop-c/) | **Human-confirmed code repair (L1)**: propose → protected-path block → grounded-repro invariant → non-LLM gate → PR + L1 approval → `human_approved` landing. Never auto-applies. | 18 |
 | [`@sho/hitl`](packages/hitl/) | Async approval ladder + the business-hours gate that closes attack #6. | 25 |
 | [`@sho/pipeline`](packages/pipeline/) | **End-to-end vertical slice** — one incident through every package (signal→dedup→RCA→route→gate→apply→trust→kill). | 1 |
-| [`@sho/adapters`](packages/adapters/) | Real edges behind interfaces: `TelegramNotifier` + `ClaudeLlmClient` (injected-fetch, tested offline; keys via env). | 5 |
-| [`@sho/app`](packages/app/) | The deployable service: signed webhook → pipeline → delivery. Real adapters when keys present, fakes otherwise. | 6 |
+| [`@sho/adapters`](packages/adapters/) | Real edges behind interfaces: `TelegramNotifier` + `ClaudeLlmClient` + `githubPublisher`/webhook verify (injected-fetch, tested offline; keys via env). | 9 |
+| [`@sho/app`](packages/app/) | The deployable service: signed webhook → pipeline → delivery, + the Loop C propose trigger and both PR-merge / Telegram confirm channels. | 12 |
 
 ```bash
 bun test packages                       # the whole product — 152 tests

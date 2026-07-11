@@ -104,6 +104,25 @@ function fileAtRef(repo: string, ref: string, path: string): string | undefined 
   try { return gitOut(repo, ['show', `${ref}:${path}`]) } catch { return undefined }
 }
 
+/**
+ * Run no-weakening over each path present on BOTH refs (an edited existing test — a new test has nothing to
+ * weaken). Returns null when no path qualifies. Exported so the widened-scope behavior is directly testable.
+ */
+export function noWeakeningOverPaths(
+  repo: string, parentRef: string, fixRef: string, paths: string[],
+): { pass: boolean; reason: string } | null {
+  const weak: { pass: boolean; reason: string }[] = []
+  for (const tp of [...new Set(paths)]) {
+    const before = fileAtRef(repo, parentRef, tp)
+    const after = fileAtRef(repo, fixRef, tp)
+    if (before !== undefined && after !== undefined) {
+      const w = noWeakening(before, after)
+      weak.push({ pass: w.pass, reason: `${tp}: ${w.reason}` })
+    }
+  }
+  return weak.length === 0 ? null : { pass: weak.every((w) => w.pass), reason: weak.map((w) => w.reason).join(' | ') }
+}
+
 function mutationOnRef(repo: string, ref: string, sourceFiles: string[], testCmd: string, threshold: number): ScoreReport {
   const wt = mkdtempSync(join(tmpdir(), 'vgate-mut-'))
   try {
@@ -122,7 +141,8 @@ export function verify(opts: {
   repo: string
   parentRef: string
   fixRef: string
-  testPaths: string[] // the new/changed test file(s)
+  testPaths: string[] // the new/changed test file(s) — must-fail-on-parent runs THESE
+  weakenAlsoPaths?: string[] // extra touched test files to check for no-weakening only (not must-fail)
   sourceFiles: string[] // the touched module file(s) to mutate
   testCmd: string
   requiredMutationScore: number // the per-class effective bar from the Trust Controller
@@ -134,17 +154,9 @@ export function verify(opts: {
   const mustFail = validateChange({ repo: opts.repo, parentRef: opts.parentRef, fixRef: opts.fixRef, testPaths: opts.testPaths, testCmd: opts.testCmd })
   const mutation = mutationOnRef(opts.repo, opts.fixRef, opts.sourceFiles, opts.testCmd, opts.requiredMutationScore)
 
-  // no-weakening: only for test files that already existed on the parent (an edited heal, not a new test).
-  const weak: { pass: boolean; reason: string }[] = []
-  for (const tp of opts.testPaths) {
-    const before = fileAtRef(opts.repo, opts.parentRef, tp)
-    const after = fileAtRef(opts.repo, opts.fixRef, tp)
-    if (before !== undefined && after !== undefined) {
-      const w = noWeakening(before, after)
-      weak.push({ pass: w.pass, reason: `${tp}: ${w.reason}` })
-    }
-  }
-  const noWeak = weak.length === 0 ? null : { pass: weak.every((w) => w.pass), reason: weak.map((w) => w.reason).join(' | ') }
+  // no-weakening: over the declared test(s) AND every other touched test file — an edited existing test can
+  // strip assertions to go green, and that weakening must be audited too (only fires for files on BOTH refs).
+  const noWeak = noWeakeningOverPaths(opts.repo, opts.parentRef, opts.fixRef, [...opts.testPaths, ...(opts.weakenAlsoPaths ?? [])])
 
   const moduleArea = opts.moduleArea ?? opts.sourceFiles[0].split('/').slice(0, 2).join('/')
   return combineGate({

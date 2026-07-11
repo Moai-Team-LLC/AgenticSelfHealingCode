@@ -26,6 +26,7 @@ export interface AutoActionStore {
   insert(row: AutoAction): void
   getByIncidentFix(incidentId: string, fixSha: string): AutoAction | undefined
   listByClass(classKey: string): AutoAction[]
+  listByArea(moduleArea: string): AutoAction[]
   get(actionId: string): AutoAction | undefined
 }
 
@@ -39,6 +40,7 @@ export class InMemoryAutoActionStore implements AutoActionStore {
   }
   getByIncidentFix(i: string, f: string) { return this.byIncidentFix.get(this.key(i, f)) }
   listByClass(classKey: string) { return [...this.byId.values()].filter((a) => a.class_key === classKey) }
+  listByArea(moduleArea: string) { return [...this.byId.values()].filter((a) => a.module_area === moduleArea) }
   get(actionId: string) { return this.byId.get(actionId) }
 }
 

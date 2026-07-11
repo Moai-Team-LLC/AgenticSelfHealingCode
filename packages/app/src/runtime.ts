@@ -10,7 +10,11 @@ import { ingest } from '@sho/signal-layer'
 import { fingerprint, moduleArea, symptomSignature, priority, type BusinessCriticality } from '@sho/aggregation'
 import { investigate, fakeTools, FakeLlmClient, type RcaTools, type LlmProposal } from '@sho/loop-a'
 import type { IncidentRecord } from '@sho/incident-memory'
+import { runRepair, type RepairAuthor, type RunGate, type ChangeRequestPublisher, type ResolvedAutonomy, type RepairOutcome, type RepairContext, type LandingStore } from '@sho/loop-c'
+import { churnHold } from '@sho/trust-controller'
+import type { ApprovalQueue } from '@sho/hitl'
 import type { IncidentLog } from './oplog'
+import type { RepairIndexStore } from './repairindex'
 
 /** The kill-switch controls the ops surface reads/toggles. In-memory KillSwitch or PgKillSwitch both fit. */
 export interface KillControl {
@@ -60,8 +64,38 @@ export interface AppDeps {
   sentryClientSecret?: string
   /** secret_token configured on the Telegram webhook; the callback endpoint checks it (fail-closed if set). */
   telegramWebhookSecret?: string
+  /** Slack signing secret; the /slack/callback endpoint verifies `x-slack-signature` with it (fail-closed). */
+  slackSigningSecret?: string
   /** answer a Telegram callback_query (clears the button spinner). Real: TelegramNotifier. */
   answerCallback?: (callbackQueryId: string, text: string) => void | Promise<void>
+  /** Loop C — human-confirmed code repair. When set, a CONFIRMED *code* diagnosis triggers a propose
+   *  attempt (author → gate → PR + approval). Absent → diagnosis only (the v1 default). Never auto-applies. */
+  repair?: RepairDeps
+}
+
+/**
+ * The Loop C (human-confirmed repair) wiring. `resolveAutonomy` and `routing` are the seams the ORCHESTRATION
+ * router owns in production (Trust Controller effectiveLevel + ownership config); injected here so the trigger
+ * is testable. The `author` is the pluggable repair worker (real = a Claude proposer inside the sandbox).
+ */
+export interface RepairDeps {
+  author: RepairAuthor
+  runGate: RunGate
+  publisher: ChangeRequestPublisher
+  approvals: ApprovalQueue
+  store: LandingStore // InMemoryAutoActionStore (fakes) or PgAutoActionStore (durable) — both satisfy it
+  index: RepairIndexStore // RepairIndex (fakes) or PgRepairIndex (durable — survives a crash before merge)
+  /** resolve the autonomy tuple for a class (real: TrustController.effectiveLevel + crosswalk). */
+  resolveAutonomy: (classKey: string, moduleArea: string, killed: boolean) => ResolvedAutonomy
+  /** team + approvers for a module_area (real: ownership config). */
+  routing: (moduleArea: string) => { team: string; primaryApprover: string | null; secondaryApprover: string | null }
+  /** out-of-band notice on a proposal (Telegram deep-link to the PR). */
+  notify?: (o: RepairOutcome) => void | Promise<void>
+  /** secret the GitHub PR-merge webhook (`x-hub-signature-256`) is verified against. */
+  githubWebhookSecret?: string
+  /** the landing timestamps (ms) for a module_area → the churn escalator (§4.1). Absent → no churn hold.
+   *  Real: `(area) => (await store.listByArea(area)).map(a => Date.parse(a.applied_at))`. */
+  churnActions?: (moduleArea: string) => number[] | Promise<number[]>
 }
 
 export type SignalResult =
@@ -125,8 +159,50 @@ export async function diagnose(
     data: { gate: inv.gate, correlationState: inv.trace.correlationState, delivered, suspicious, priority: pr },
   })
 
+  // Loop C — human-confirmed repair (opt-in). A grounded CONFIRMED *code* diagnosis becomes a proposed PR
+  // for a human to merge; it NEVER auto-applies. In production this is a durable orchestrator step; here it
+  // runs inline behind the flag so the end-to-end path (propose → gate → PR + approval) is testable.
+  if (deps.repair && inv.gate === 'CONFIRMED' && inv.trace.fixClass === 'code') {
+    await attemptRepair(c, classKey, inv.trace, deps, deps.repair)
+  }
+
   return {
     ok: true, incidentId: c.id, classKey, priority: pr, gate: inv.gate,
     correlationState: inv.trace.correlationState, delivered, suspicious,
+  }
+}
+
+/** Run one propose attempt and, if it resulted in a PR, record it so both confirm channels can find it. */
+async function attemptRepair(
+  c: import('@sho/contracts').IncidentCandidate,
+  classKey: string,
+  trace: WhyTrace,
+  deps: AppDeps,
+  repair: RepairDeps,
+): Promise<void> {
+  const area = moduleArea(c)
+  const killed = deps.killSwitch ? await deps.killSwitch.isKilled(Date.now()) : false
+  // Churn escalator (§4.1): a thrashing area is held from further auto-proposals even at L1 → floor to L0.
+  const churnHeld = repair.churnActions ? churnHold(await repair.churnActions(area), Date.now()) : false
+  const resolved = repair.resolveAutonomy(classKey, area, killed)
+  const autonomy: ResolvedAutonomy = churnHeld ? { ...resolved, level: 'L0', tier: 1 } : resolved
+  const route = repair.routing(area)
+  const ctx: RepairContext = {
+    incidentId: c.id, classKey, moduleArea: area,
+    team: route.team, primaryApprover: route.primaryApprover, secondaryApprover: route.secondaryApprover,
+    whyTrace: trace, loopADecision: 'CONFIRMED', autonomy,
+  }
+  const outcome = await runRepair(ctx, {
+    author: repair.author, runGate: repair.runGate, publisher: repair.publisher,
+    approvals: repair.approvals, nowMs: Date.now(), notify: repair.notify, telemetry: deps.telemetry,
+  })
+  if (outcome.status === 'proposed' && outcome.approvalId && outcome.changeRequest && outcome.staged && outcome.gate) {
+    await repair.index.record({
+      approvalId: outcome.approvalId, incidentId: c.id, classKey, moduleArea: area,
+      parentSha: outcome.staged.parentSha, fixSha: outcome.staged.fixSha,
+      prNumber: outcome.changeRequest.number, prUrl: outcome.changeRequest.url,
+      accountableOwner: autonomy.accountableOwner ?? route.team, // L1 fallback: team owns if class owner unset
+      gateResult: outcome.gate,
+    })
   }
 }
