@@ -1,8 +1,8 @@
 # Integrations — optional AgenticOps / AgenticMind
 
 Self-Healing Ops (SHO) is a **standalone** open-source product: it runs end-to-end on Postgres +
-pgvector with nothing else (see the top-level README). But it shares DNA with two sibling OSS
-projects, and when they're present SHO plugs into them as a first-class app on the platform:
+pgvector with nothing else (see the top-level README). It can *optionally* integrate with two other
+OSS tools when they're present:
 
 - **[AgenticMind](https://github.com/Moai-Team-LLC/AgenticMind)** — the pgvector why-trace memory engine
   (retrieval, judge-gated, anti-hallucination). SHO's Incident Memory *is* this pattern.
