@@ -23,7 +23,13 @@ export interface ClaudeOptions {
   model?: string
   fetchFn?: FetchLike
   maxTokens?: number
+  /** Anthropic-compatible API base (no trailing slash), e.g. a model-plane gateway
+   * (AgenticGateway/Bifrost Anthropic route) instead of api.anthropic.com directly.
+   * Default: https://api.anthropic.com */
+  baseUrl?: string
 }
+
+const DEFAULT_ANTHROPIC_BASE_URL = 'https://api.anthropic.com'
 
 function buildPrompt(candidate: IncidentCandidate, evidenceSummary: string): string {
   return [
@@ -73,7 +79,8 @@ export async function proposeWithClaude(
   opts: ClaudeOptions,
 ): Promise<LlmProposal> {
   const f = opts.fetchFn ?? realFetch
-  const res = await f('https://api.anthropic.com/v1/messages', {
+  const base = (opts.baseUrl ?? DEFAULT_ANTHROPIC_BASE_URL).replace(/\/+$/, '')
+  const res = await f(`${base}/v1/messages`, {
     method: 'POST',
     headers: { 'x-api-key': opts.apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
     body: JSON.stringify({

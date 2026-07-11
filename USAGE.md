@@ -110,6 +110,7 @@ BODY="{\"token\":\"$KILL_RELEASE_TOKEN\"}"; curl -X POST localhost:3000/release 
 | `SENTRY_CLIENT_SECRET` | Enables native Sentry webhooks on `/webhook/sentry`. |
 | `RCA_GIT_REPO` | Local checkout → real git deploy-diff grounding (CONFIRMED, not just ESCALATE). |
 | `ANTHROPIC_API_KEY` | Claude proposes RCA hypotheses (grounding stays mechanical). |
+| `ANTHROPIC_BASE_URL` | Optional Anthropic-compatible base — route the LLM call through a model plane (e.g. [AgenticGateway](https://github.com/Moai-Team-LLC/AgenticGateway)) instead of `api.anthropic.com`. |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | Deliver why-traces to on-call. |
 | `TELEGRAM_WEBHOOK_SECRET` | Auth for the `/telegram/callback` endpoint. |
 | `KILL_RELEASE_TOKEN` | The token required to `release` the kill switch. |
