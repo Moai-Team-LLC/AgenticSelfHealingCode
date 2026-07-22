@@ -34,6 +34,26 @@ test('handleSignal: signed signal → diagnosed + delivered once', async () => {
   expect(sink[0]!.hypothesis.length).toBeGreaterThan(0)
 })
 
+test('noise floor: a single-occurrence unconfirmed blip is recorded but NOT paged', async () => {
+  const { deps, sink } = makeDeps()
+  const b = body({ id: 'evt-quiet', occurrences: 1 }) // one-off, ESCALATE, no recognizable upstream cause
+  const r = await handleSignal(b, 'sentry', { secret: SECRET, signature: sign(b) }, deps)
+  expect(r.ok && r.delivered).toBe(false)
+  expect(sink).toHaveLength(0)
+})
+
+test('an actionable upstream cause (402 balance) pages on the FIRST occurrence, with a crisp cause', async () => {
+  const { deps, sink } = makeDeps()
+  const b = body({ id: 'evt-bill', occurrences: 1, service: 'ai-assistant', message: 'openrouter/openai/gpt-4o-mini: 402 insufficient_credits' })
+  const r = await handleSignal(b, 'sentry', { secret: SECRET, signature: sign(b) }, deps)
+  expect(r.ok && r.delivered).toBe(true)
+  expect(sink).toHaveLength(1)
+  expect(sink[0]!.actionable).toBe(true)
+  expect(sink[0]!.upstreamClass).toBe('billing')
+  expect(sink[0]!.cause).toMatch(/credit|quota/i) // named, not a vague "transient outage"
+  expect(sink[0]!.action).toMatch(/top up|balance/i)
+})
+
 test('handleSignal: bad signature is rejected before anything runs', async () => {
   const { deps, sink } = makeDeps()
   const r = await handleSignal(body(), 'sentry', { secret: SECRET, signature: 'deadbeef' }, deps)

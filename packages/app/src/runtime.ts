@@ -7,7 +7,8 @@
 
 import type { SignalSource, WhyTrace, TelemetrySink } from '@sho/contracts'
 import { ingest } from '@sho/signal-layer'
-import { fingerprint, moduleArea, symptomSignature, priority, type BusinessCriticality } from '@sho/aggregation'
+import { fingerprint, moduleArea, symptomSignature, priority, classifyUpstream, type BusinessCriticality } from '@sho/aggregation'
+import { shouldPage, isActionable, type PageDedup, type PagingConfig } from './paging'
 import { investigate, fakeTools, FakeLlmClient, type RcaTools, type LlmProposal } from '@sho/loop-a'
 import type { IncidentRecord } from '@sho/incident-memory'
 import { runRepair, type RepairAuthor, type RunGate, type ChangeRequestPublisher, type ResolvedAutonomy, type RepairOutcome, type RepairContext, type LandingStore } from '@sho/loop-c'
@@ -41,6 +42,14 @@ export interface DeliveryPayload {
   gate: 'CONFIRMED' | 'ESCALATE'
   recommendedAction: string
   suspicious: boolean
+  /** the crisp, human cause — the deterministic upstream classification when recognized, else the hypothesis. */
+  cause: string
+  /** the one-line recommendation (top up the balance / roll back / on-call decides). No internal G-codes. */
+  action: string
+  /** does a human need to act? (drives whether it paged on a single occurrence + whether an ack button shows). */
+  actionable: boolean
+  /** the recognized upstream failure class, if any (billing/auth/rate_limit/provider_outage). */
+  upstreamClass?: string
 }
 
 export interface AppDeps {
@@ -62,6 +71,10 @@ export interface AppDeps {
   /** Sentry integration Client Secret. Set → the /webhook/sentry endpoint accepts NATIVE Sentry webhooks
    *  (verified via the `sentry-hook-signature` header) in addition to our own HMAC format. */
   sentryClientSecret?: string
+  /** per-fingerprint page dedup (the same cause pages at most once per window). Absent → no cause-dedup. */
+  pageDedup?: PageDedup
+  /** paging thresholds (noise floor + dedup window). Absent → DEFAULT_PAGING. */
+  pagingConfig?: PagingConfig
   /** secret_token configured on the Telegram webhook; the callback endpoint checks it (fail-closed if set). */
   telegramWebhookSecret?: string
   /** Slack signing secret; the /slack/callback endpoint verifies `x-slack-signature` with it (fail-closed). */
@@ -124,9 +137,10 @@ export async function diagnose(
 ): Promise<SignalResult> {
   const classKey = `${moduleArea(c)}::${symptomSignature(c)}`
   const pr = priority(c, { businessCriticality: deps.criticality })
+  const fp = fingerprint(c)
   // AWAIT: the incident row must exist before the notify_state CAS below reads it (durable Pg path).
   await deps.mem.recordIncident({
-    id: c.id, fingerprint: fingerprint(c), symptomSignature: classKey.split('::')[1] ?? '',
+    id: c.id, fingerprint: fp, symptomSignature: classKey.split('::')[1] ?? '',
     moduleArea: moduleArea(c), signalText: `${c.affected_service} ${c.fingerprint}`, firstSeenMs: Date.parse(c.first_seen),
   })
 
@@ -138,17 +152,37 @@ export async function diagnose(
   const telemetryText = [String(raw?.title ?? ''), String(raw?.message ?? '')].filter(Boolean)
   const inv = investigate(c, tools, { telemetryText })
 
+  // Ground the cause on the ACTUAL upstream error (402/429/401/5xx) when recognizable, not the LLM's guess.
+  const errorText = [c.affected_service, c.fingerprint, ...telemetryText, String(raw?.error_class ?? ''), raw ? JSON.stringify(raw) : ''].join(' ')
+  const upstream = classifyUpstream(errorText)
+  const suspicious = ingestSuspicious || inv.trace.suspiciousContentFlag
+  const actionable = isActionable({ gate: inv.gate, suspicious, occurrences: c.occurrences, upstream })
+  const cause = upstream ? `${c.affected_service}: ${upstream.cause}` : inv.trace.hypothesis
+  const action = upstream
+    ? upstream.action
+    : inv.gate === 'CONFIRMED'
+      ? inv.trace.recommendedAction
+      : 'root cause unconfirmed — on-call decides'
+
+  // Paging: the noise floor (a one-off non-actionable blip stays quiet) + per-fingerprint dedup (one cause,
+  // one page per window). Both are separate from the durable notify CAS (which dedups a single incident id).
+  const nowMs = Date.now()
+  const pageWorthy =
+    shouldPage({ gate: inv.gate, suspicious, occurrences: c.occurrences, upstream }, deps.pagingConfig) &&
+    !(deps.pageDedup?.suppressed(fp, nowMs) ?? false)
+
   let delivered = false
-  if (await deps.notify.casNotified(c.id)) {
+  if (pageWorthy && (await deps.notify.casNotified(c.id))) {
     const payload: DeliveryPayload = {
       incidentId: c.id, hypothesis: inv.trace.hypothesis, correlationState: inv.trace.correlationState,
-      gate: inv.gate, recommendedAction: inv.trace.recommendedAction, suspicious: inv.trace.suspiciousContentFlag,
+      gate: inv.gate, recommendedAction: inv.trace.recommendedAction, suspicious,
+      cause, action, actionable, upstreamClass: upstream?.cls,
     }
     for (const sink of deps.deliverSinks ?? []) sink(payload)
+    deps.pageDedup?.markPaged(fp, nowMs)
     delivered = true
   }
 
-  const suspicious = ingestSuspicious || inv.trace.suspiciousContentFlag
   const at = new Date().toISOString()
   deps.oplog?.record({
     incidentId: c.id, classKey, gate: inv.gate, correlationState: inv.trace.correlationState,
