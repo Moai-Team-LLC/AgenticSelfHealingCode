@@ -22,10 +22,19 @@ import { GitBlameLog } from '@sho/rca-git'
 import { createFetchHandler } from './http'
 import { IncidentLog } from './oplog'
 import { RepairIndex, PgRepairIndex } from './repairindex'
+import { PageDedup, type PagingConfig } from './paging'
 import type { AppDeps, DeliveryPayload, IncidentRecorder, NotifyGate, KillControl, RepairDeps } from './runtime'
 
+/** Concise on-call notice: one icon + the crisp cause + the recommendation. No duplicate hypothesis, no G-codes. */
 function renderDelivery(p: DeliveryPayload): string {
-  return `[${p.gate}] ${p.incidentId} — ${p.hypothesis}\ncorrelation: ${p.correlationState}${p.suspicious ? ' ⚠ suspicious telemetry' : ''}\n→ ${p.recommendedAction}`
+  const icon = p.gate === 'CONFIRMED' ? '🔴' : p.actionable ? '⚠️' : 'ℹ️'
+  const lines = [`${icon} ${p.cause}`]
+  if (p.action) lines.push(`→ ${p.action}`)
+  const meta: string[] = []
+  if (p.correlationState !== 'deploy_linked') meta.push(p.correlationState)
+  if (p.suspicious) meta.push('⚠ suspicious telemetry')
+  if (meta.length) lines.push(meta.join(' · '))
+  return lines.join('\n')
 }
 
 /** The human-readable proposal notice: the error, the fix, the gate verdict, and the PR — with Approve/Reject. */
@@ -83,7 +92,8 @@ export function buildServerDeps(now: () => number): AppDeps {
   let tg: TelegramNotifier | undefined
   if (tgToken && chat) {
     tg = new TelegramNotifier({ token: tgToken })
-    deliverSinks.push((p) => { tg!.send({ chat, text: renderDelivery(p), buttons: [`ack:${p.incidentId}`] }, now()) })
+    // ack button only when a human needs to act; a pure-FYI notice carries no button (no rubber-stamp).
+    deliverSinks.push((p) => { tg!.send({ chat, text: renderDelivery(p), buttons: p.actionable ? [`ack:${p.incidentId}`] : [] }, now()) })
     answerCallback = (id, text) => {
       void realFetch(`https://api.telegram.org/bot${tgToken}/answerCallbackQuery`, {
         method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ callback_query_id: id, text }),
@@ -137,9 +147,14 @@ export function buildServerDeps(now: () => number): AppDeps {
     }
   }
 
+  // Paging noise controls: a single non-actionable blip stays quiet; the same cause pages once per window.
+  const dedupWindowMs = Number(optionalEnv('PAGE_DEDUP_WINDOW_MIN') ?? 15) * 60_000
+  const pagingConfig: PagingConfig = { noiseFloorOccurrences: Number(optionalEnv('PAGE_MIN_OCCURRENCES') ?? 2), dedupWindowMs }
+
   return {
     mem, notify, killSwitch, secret, criticality: criticalityFromMap({}), propose, toolOverrides, deliverSinks,
     oplog: new IncidentLog(),
+    pageDedup: new PageDedup(dedupWindowMs), pagingConfig,
     sentryClientSecret: optionalEnv('SENTRY_CLIENT_SECRET'),
     telegramWebhookSecret: optionalEnv('TELEGRAM_WEBHOOK_SECRET'),
     slackSigningSecret: optionalEnv('SLACK_SIGNING_SECRET'),

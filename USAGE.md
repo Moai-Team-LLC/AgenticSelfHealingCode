@@ -121,6 +121,8 @@ BODY="{\"token\":\"$KILL_RELEASE_TOKEN\"}"; curl -X POST localhost:3000/release 
 | `REPAIR_ALLOW_UNTRUSTED_EXECUTION` | **Arms the repair worker** — set `true` only inside the SECURITY §4 sandbox container. Absent → diagnosis-only. |
 | `REPAIR_GIT_REPO` / `REPAIR_TEST_CMD` / `REPAIR_BASE_REF` | The repo the sandbox runs against, its test command, its base ref. |
 | `REPAIR_OWNER` / `REPAIR_TEAM` / `REPAIR_APPROVER` | Accountable owner (D9) + approver routing for a landing. |
+| `PAGE_MIN_OCCURRENCES` | A non-actionable ESCALATE pages only once occurrences reach this (default 2). |
+| `PAGE_DEDUP_WINDOW_MIN` | The same cause pages at most once per this many minutes (default 15). |
 | `PORT` | Listen port (default 3000). |
 
 ## 5. Turn on human-confirmed code repair (Loop C, L1)

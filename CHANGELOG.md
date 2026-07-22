@@ -6,6 +6,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed (on-call notifications — less noise, clearer cause)
+
+- **Deterministic upstream classification** (`@sho/aggregation` `classifyUpstream`). A provider failure is
+  named from the actual error, not guessed: `402 / insufficient_credits / quota` → **credit/quota exhausted
+  (top up)**, `401/403` → auth/key, `429` → rate-limited, `5xx/timeout` → provider outage. So an OpenRouter
+  balance-out reads as "credit exhausted — top up", not a vague "transient outage or rate limit".
+- **Concise delivery render.** One icon + the crisp cause + one recommendation. Removed the duplicated
+  hypothesis and the leaked internal grounding codes (G1–G7) from the Telegram/Slack message.
+- **Noise floor + cause dedup** (`@sho/app` `paging.ts`). A single-occurrence, non-actionable ESCALATE (a
+  transient blip that self-resolved) is recorded but does **not** page — it only pages once it recurs. And the
+  same cause (fingerprint) pages at most once per window (`PageDedup`), so one provider outage that throws N
+  times is one page, not N. Actionable causes (billing/auth) and CONFIRMED verdicts still page on the first hit.
+  Tunable: `PAGE_MIN_OCCURRENCES` (default 2), `PAGE_DEDUP_WINDOW_MIN` (default 15).
+- **Ack button only when actionable.** A pure-FYI notice carries no button (no rubber-stamp); an incident that
+  needs a human keeps the `ack` button.
+
 ### Added
 
 - **Human-confirmed code repair — Loop C, L1** (`@sho/loop-c`). Activates the rung `LOOP-C-DEFERRED.md` §5.1
