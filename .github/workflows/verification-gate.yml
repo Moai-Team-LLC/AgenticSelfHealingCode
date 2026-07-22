@@ -1,13 +1,17 @@
-# Verification Gate — runs the non-LLM gate (must-fail-on-parent + mutation score + no-weakening)
-# on every PR. Reference workflow: adjust the path to gate/cli.ts and the --test-cmd to your project.
+# Verification Gate — the Loop-C REPAIR validator (must-fail-on-parent + mutation score + no-weakening).
+# It validates a *repair* (a fix + a regression test that must FAIL on the parent), NOT ordinary feature PRs.
+# On a feature PR must-fail-on-parent is INFRA (a new test can't run on the parent, where its symbols don't
+# exist yet) and 0.75 is the AUTO-APPLY mutation bar, not a code-quality bar — so it can never pass there.
+# It therefore runs ONLY on a PR explicitly labeled `verification-gate` (an actual repair to validate).
+# Human PRs are covered by the `test` job (full suite) + commitlint. See gate/README.md.
 #
-# Requires full history (fetch-depth: 0) so the gate can check out and diff base..head. The gate
-# builds throwaway git worktrees and symlinks node_modules into them, so `bun install` must run first.
+# Requires full history (fetch-depth: 0). The gate builds throwaway git worktrees and symlinks node_modules
+# into them, so `bun install` must run first.
 name: Verification Gate
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, labeled]
 
 # One run per PR; cancel superseded runs.
 concurrency:
@@ -16,6 +20,8 @@ concurrency:
 
 jobs:
   gate:
+    # Opt-in: only validate PRs explicitly labeled as a repair. Unlabeled PRs skip this (no false red).
+    if: contains(github.event.pull_request.labels.*.name, 'verification-gate')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
