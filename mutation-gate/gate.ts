@@ -57,10 +57,34 @@ export function maskLine(line: string): string {
   return out
 }
 
+/**
+ * Blank `/* … *​/` block comments across the whole source (length- and
+ * line-count-preserving, so mutant line/col stay valid). Without this, operators
+ * inside a JSDoc block (`>`, `+`, `&&`, …) are mutated into behaviourally-inert
+ * mutants that always survive and silently deflate the score — the bug that made
+ * a well-tested file fail its own gate purely from a verbose doc comment.
+ */
+export function maskBlockComments(src: string): string {
+  let out = ''
+  let inBlock = false
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i]
+    if (inBlock) {
+      if (c === '*' && src[i + 1] === '/') { out += '  '; i++; inBlock = false; continue }
+      out += c === '\n' ? '\n' : ' '
+      continue
+    }
+    if (c === '/' && src[i + 1] === '*') { out += '  '; i++; inBlock = true; continue }
+    out += c
+  }
+  return out
+}
+
 /** Generate one mutant per operator occurrence (outside strings/comments). Deterministic order. */
 export function mutate(src: string): Mutant[] {
   const lines = src.split('\n')
-  const masked = lines.map(maskLine)
+  // Mask block comments first (cross-line), then strings + line comments per line.
+  const masked = maskBlockComments(src).split('\n').map(maskLine)
   const mutants: Mutant[] = []
   let id = 0
   for (const m of MUTATORS) {
